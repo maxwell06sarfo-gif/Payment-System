@@ -12,3 +12,7 @@
 ○ Compiling / ...
  GET / 200 in 57s (next.js: 52s, proxy.ts: 1223ms, application-code: 3.3s)
 ✓ Finished writing to filesystem cache in 24.9s
+○ Compiling /dashboard ...
+ GET /dashboard 200 in 6.4s (next.js: 5.8s, proxy.ts: 16ms, application-code: 655ms)
+✓ Finished writing to filesystem cache in 14.1s
+✓ Finished filesystem cache database compaction in 44s

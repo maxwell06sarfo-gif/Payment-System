@@ -145,15 +145,14 @@ public class SupabaseDataStore : IAppDataStore
         DateTime notificationWindow,
         CancellationToken ct)
     {
+        // Filter for Active subs ending in the window AND (notification never sent OR sent more than 24h ago)
+        var dateThreshold = Escape(now.AddDays(-1).ToString("O"));
         var rows = await GetAsync<List<SupabaseSubscriptionRow>>(
-            $"subscriptions?status=eq.Active&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(notificationWindow.ToString("O"))}&select=*",
+            $"subscriptions?status=eq.Active&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(notificationWindow.ToString("O"))}" +
+            $"&or=(last_expiration_notification_at.is.null,last_expiration_notification_at.lt.{dateThreshold})&select=*",
             ct);
 
-        return rows
-            .Select(MapSubscription)
-            .Where(subscription => subscription.LastExpirationNotificationAt == null
-                || subscription.LastExpirationNotificationAt < now.AddDays(-1))
-            .ToList();
+        return rows.Select(MapSubscription).ToList();
     }
 
     public Task MarkSubscriptionsExpiredAsync(IEnumerable<Guid> subscriptionIds, CancellationToken ct)
@@ -245,11 +244,16 @@ public class SupabaseDataStore : IAppDataStore
 
     private async Task<T> SendAsync<T>(HttpRequestMessage request, CancellationToken ct)
     {
+        var path = request.RequestUri?.PathAndQuery;
         using var response = await _http.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                throw new InvalidOperationException($"Supabase Table Missing: Ensure you have run the supabase-setup.sql script. Error: {content}");
+            }
             throw new InvalidOperationException(
                 $"Supabase request failed with {(int)response.StatusCode}: {content}");
         }

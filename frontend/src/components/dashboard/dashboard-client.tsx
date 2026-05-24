@@ -112,6 +112,16 @@ export function DashboardClient() {
     };
   }, [router]);
 
+  // Clear checkout status from URL to prevent toast persistence on refresh
+  useEffect(() => {
+    if (checkoutState) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("checkout");
+      // Use replaceState to keep the history clean without a full navigation
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, [checkoutState]);
+
   const activeSubscription = profile?.activeSubscription ?? null;
   const sortedPlans = useMemo(
     () =>
