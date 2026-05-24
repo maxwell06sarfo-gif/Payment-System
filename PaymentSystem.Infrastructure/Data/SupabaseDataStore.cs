@@ -13,22 +13,20 @@ public class SupabaseDataStore : IAppDataStore
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string _restUrl;
+    private readonly string _serviceRoleKey;
 
     public SupabaseDataStore(HttpClient http, IConfiguration configuration)
     {
         var supabaseUrl = configuration["Supabase:Url"]?.TrimEnd('/');
-        var serviceRoleKey = configuration["Supabase:ServiceRoleKey"];
+        _serviceRoleKey = configuration["Supabase:ServiceRoleKey"] ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(_serviceRoleKey))
         {
             throw new InvalidOperationException("Supabase URL and service-role key are required when Supabase storage is enabled.");
         }
 
         _http = http;
         _restUrl = $"{supabaseUrl}/rest/v1";
-        _http.DefaultRequestHeaders.TryAddWithoutValidation("apikey", serviceRoleKey);
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", serviceRoleKey);
-        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     public async Task<bool> UserExistsByEmailAsync(string email, CancellationToken ct)
@@ -244,7 +242,11 @@ public class SupabaseDataStore : IAppDataStore
 
     private async Task<T> SendAsync<T>(HttpRequestMessage request, CancellationToken ct)
     {
-        var path = request.RequestUri?.PathAndQuery;
+        // Apply security headers to every individual request message
+        request.Headers.TryAddWithoutValidation("apikey", _serviceRoleKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
         using var response = await _http.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
