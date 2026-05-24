@@ -1,0 +1,71 @@
+Building...
+info: PaymentSystem.Infrastructure.BackgroundServices.SubscriptionExpiryMonitor[0]
+      Subscription Expiry Monitor Service starting up...
+info: PaymentSystem.Infrastructure.BackgroundServices.SubscriptionExpiryMonitor[0]
+      Scanning database for expired subscriptions...
+info: System.Net.Http.HttpClient.IAppDataStore.LogicalHandler[100]
+      Start processing HTTP request GET https://diukgksawvtfaciwievo.supabase.co/rest/v1/subscriptions?status=not.in.(Expired,Canceled)&ends_at=lt.2026-05-24T19%3A22%3A39.0264159Z&select=*
+info: System.Net.Http.HttpClient.IAppDataStore.ClientHandler[100]
+      Sending HTTP request GET https://diukgksawvtfaciwievo.supabase.co/rest/v1/subscriptions?status=not.in.(Expired,Canceled)&ends_at=lt.2026-05-24T19%3A22%3A39.0264159Z&select=*
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5149
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Web
+info: System.Net.Http.HttpClient.IAppDataStore.ClientHandler[101]
+      Received HTTP response headers after 1646.0624ms - 404
+info: System.Net.Http.HttpClient.IAppDataStore.LogicalHandler[101]
+      End processing HTTP request after 1715.1283ms - 404
+fail: PaymentSystem.Infrastructure.BackgroundServices.SubscriptionExpiryMonitor[0]
+      An error occurred while processing subscription expirations.
+      System.InvalidOperationException: Supabase request failed with 404: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.subscriptions' in the schema cache"}
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.SendAsync[T](HttpRequestMessage request, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 250
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetAsync[T](String path, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 221
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetSubscriptionsToExpireAsync(DateTime now, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 136
+         at PaymentSystem.Infrastructure.BackgroundServices.SubscriptionExpiryMonitor.CheckAndExpireSubscriptionsAsync(CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\BackgroundServices\SubscriptionExpiryMonitor.cs:line 56
+         at PaymentSystem.Infrastructure.BackgroundServices.SubscriptionExpiryMonitor.ExecuteAsync(CancellationToken stoppingToken) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\BackgroundServices\SubscriptionExpiryMonitor.cs:line 34
+warn: LuckyPennySoftware.MediatR.License[0]
+      You do not have a valid license key for the Lucky Penny software MediatR. This is allowed for development and testing scenarios. If you are running in production you are required to have a licensed version. Please visit https://luckypennysoftware.com to obtain a valid license.
+info: System.Net.Http.HttpClient.IAppDataStore.LogicalHandler[100]
+      Start processing HTTP request GET https://diukgksawvtfaciwievo.supabase.co/rest/v1/users?id=eq.31cbff28-47d5-464c-a76d-00da987a3c24&select=*&limit=1
+info: System.Net.Http.HttpClient.IAppDataStore.ClientHandler[100]
+      Sending HTTP request GET https://diukgksawvtfaciwievo.supabase.co/rest/v1/users?id=eq.31cbff28-47d5-464c-a76d-00da987a3c24&select=*&limit=1
+info: System.Net.Http.HttpClient.IAppDataStore.ClientHandler[101]
+      Received HTTP response headers after 1354.9468ms - 404
+info: System.Net.Http.HttpClient.IAppDataStore.LogicalHandler[101]
+      End processing HTTP request after 1355.1227ms - 404
+fail: Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware[1]
+      An unhandled exception has occurred while executing the request.
+      System.InvalidOperationException: Supabase request failed with 404: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.users' in the schema cache"}
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.SendAsync[T](HttpRequestMessage request, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 250
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetAsync[T](String path, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 221
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetUserWithSubscriptionsAsync(Guid userId, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 54
+         at PaymentSystem.Infrastructure.CQRS.Handlers.SubscriptionHandler.Handle(GetUserProfileQuery request, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\CQRS\Handlers\SubscriptionHandler.cs:line 62
+         at PaymentSystem.Infrastructure.CQRS.Behaviors.ValidationBehavior`2.Handle(TRequest request, RequestHandlerDelegate`1 next, CancellationToken cancellationToken) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\CQRS\Behaviors\ValidationBehavior.cs:line 40
+         at Program.<>c.<<<Main>$>b__0_7>d.MoveNext() in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Web\Program.cs:line 113
+      --- End of stack trace from previous location ---
+         at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+         at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+         at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+         at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+         at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+         at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.<Invoke>g__Awaited|10_0(ExceptionHandlerMiddlewareImpl middleware, HttpContext context, Task task)
+fail: PaymentSystem.Web.Middleware.GlobalExceptionHandler[0]
+      An unhandled exception occurred: Supabase request failed with 404: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.users' in the schema cache"}
+      System.InvalidOperationException: Supabase request failed with 404: {"code":"PGRST205","details":null,"hint":null,"message":"Could not find the table 'public.users' in the schema cache"}
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.SendAsync[T](HttpRequestMessage request, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 250
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetAsync[T](String path, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 221
+         at PaymentSystem.Infrastructure.Data.SupabaseDataStore.GetUserWithSubscriptionsAsync(Guid userId, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\Data\SupabaseDataStore.cs:line 54
+         at PaymentSystem.Infrastructure.CQRS.Handlers.SubscriptionHandler.Handle(GetUserProfileQuery request, CancellationToken ct) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\CQRS\Handlers\SubscriptionHandler.cs:line 62
+         at PaymentSystem.Infrastructure.CQRS.Behaviors.ValidationBehavior`2.Handle(TRequest request, RequestHandlerDelegate`1 next, CancellationToken cancellationToken) in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Infrastructure\CQRS\Behaviors\ValidationBehavior.cs:line 40
+         at Program.<>c.<<<Main>$>b__0_7>d.MoveNext() in C:\Users\BROBBS\Desktop\PaymentSystem\PaymentSystem.Web\Program.cs:line 113
+      --- End of stack trace from previous location ---
+         at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+         at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+         at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+         at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+         at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+         at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddlewareImpl.<Invoke>g__Awaited|10_0(ExceptionHandlerMiddlewareImpl middleware, HttpContext context, Task task)
