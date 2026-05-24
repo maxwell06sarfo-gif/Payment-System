@@ -8,10 +8,12 @@ namespace PaymentSystem.Infrastructure.Services;
 public class StripeSubscriptionService
 {
     private readonly IConfiguration _configuration;
+    private readonly SubscriptionPlanService _planService;
 
-    public StripeSubscriptionService(IConfiguration configuration)
+    public StripeSubscriptionService(IConfiguration configuration, SubscriptionPlanService planService)
     {
         _configuration = configuration;
+        _planService = planService;
 
         var apiKey = configuration["Stripe:SecretKey"] ?? "sk_test_mock_placeholder_key";
         StripeConfiguration.ApiKey = apiKey;
@@ -74,29 +76,6 @@ public class StripeSubscriptionService
         return session.Url;
     }
 
-    public decimal CalculatePlanPrice(SubscriptionTier tier, SubscriptionDuration duration)
-    {
-        decimal baseMonthlyPrice = tier switch
-        {
-            SubscriptionTier.Promotion => 19.99m,
-            SubscriptionTier.Gold => 49.99m,
-            SubscriptionTier.Diamond => 99.99m,
-            _ => throw new ArgumentOutOfRangeException(nameof(tier))
-        };
-
-        if (duration == SubscriptionDuration.SixMonths)
-        {
-            return Math.Round((baseMonthlyPrice * 6) * 0.90m, 2);
-        }
-
-        if (duration == SubscriptionDuration.Yearly)
-        {
-            return Math.Round((baseMonthlyPrice * 12) * 0.80m, 2);
-        }
-
-        return baseMonthlyPrice;
-    }
-
     private SessionLineItemOptions BuildCheckoutLineItem(
         SubscriptionTier tier,
         SubscriptionDuration duration)
@@ -111,7 +90,7 @@ public class StripeSubscriptionService
             };
         }
 
-        var priceInCents = decimal.ToInt64(CalculatePlanPrice(tier, duration) * 100m);
+        var priceInCents = decimal.ToInt64(_planService.GetPlanPrice(tier, duration) * 100m);
 
         return new SessionLineItemOptions
         {

@@ -125,7 +125,6 @@ public class SubscriptionHandler :
         }
 
         await _dataStore.UpdateUserAsync(user, ct);
-        await _dataStore.MarkActiveSubscriptionsReplacedAsync(user.Id, ct);
 
         var newSubscription = new Subscription
         {
@@ -139,6 +138,12 @@ public class SubscriptionHandler :
             EndsAt = endsAt,
             StripeSubscriptionId = checkoutUrl is null ? "demo_local_subscription" : null
         };
+
+        // Only replace existing subscriptions immediately if this is a local/demo activation
+        if (status == "Active")
+        {
+            await _dataStore.MarkActiveSubscriptionsReplacedAsync(user.Id, ct);
+        }
 
         await _dataStore.AddSubscriptionAsync(newSubscription, ct);
 

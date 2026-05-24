@@ -186,6 +186,9 @@ public class SupabaseDataStore : IAppDataStore
             return;
         }
 
+        // Ensure old subscriptions are marked as replaced now that the new one is confirmed
+        await MarkActiveSubscriptionsReplacedAsync(userId, ct);
+
         await SendAsync<object>(
             HttpMethod.Patch,
             $"subscriptions?id=eq.{rows[0].Id}",

@@ -144,6 +144,9 @@ public class EfAppDataStore : IAppDataStore
             return;
         }
 
+        // Ensure old subscriptions are marked as replaced now that the new one is confirmed
+        await MarkActiveSubscriptionsReplacedAsync(userId, ct);
+
         subscription.Status = "Active";
         subscription.StripeSubscriptionId = stripeSubscriptionId ?? subscription.StripeSubscriptionId;
         await _db.SaveChangesAsync(ct);
