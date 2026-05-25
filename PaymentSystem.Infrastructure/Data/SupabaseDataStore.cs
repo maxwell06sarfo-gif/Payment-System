@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
+using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.Entities;
 using PaymentSystem.Core.Enums;
 
@@ -109,8 +110,8 @@ public class SupabaseDataStore : IAppDataStore
     {
         return SendAsync<object>(
             HttpMethod.Patch,
-            $"subscriptions?user_id=eq.{userId}&status=eq.Active",
-            new { status = "Replaced" },
+            $"subscriptions?user_id=eq.{userId}&status=eq.{SubscriptionStatus.Active}",
+            new { status = SubscriptionStatus.Replaced },
             ct);
     }
 
@@ -133,8 +134,8 @@ public class SupabaseDataStore : IAppDataStore
     {
         var result = await SendAsync<List<object>>(
             HttpMethod.Patch,
-            $"subscriptions?status=not.in.(Expired,Canceled)&ends_at=lt.{Escape(now.ToString("O"))}",
-            new { status = "Expired" },
+            $"subscriptions?status=not.in.({SubscriptionStatus.Expired},{SubscriptionStatus.Canceled})&ends_at=lt.{Escape(now.ToString("O"))}",
+            new { status = SubscriptionStatus.Expired },
             ct,
             preferRepresentation: true);
 
@@ -144,8 +145,8 @@ public class SupabaseDataStore : IAppDataStore
     public async Task<int> SendBulkExpirationNotificationsAsync(DateTime now, DateTime window, CancellationToken ct)
     {
         var dateThreshold = Escape(now.AddDays(-1).ToString("O"));
-        var query = $"subscriptions?status=eq.Active&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(window.ToString("O"))}" +
-                    $"&or=(last_expiration_notification_at.is.null,last_expiration_notification_at.lt.{dateThreshold})";
+        var query = $"subscriptions?status=eq.{SubscriptionStatus.Active}&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(window.ToString("O"))}"
+                  + $"&or=(last_expiration_notification_at.is.null,last_expiration_notification_at.lt.{dateThreshold})";
 
         var result = await SendAsync<List<object>>(
             HttpMethod.Patch,
@@ -163,7 +164,7 @@ public class SupabaseDataStore : IAppDataStore
         CancellationToken ct)
     {
         var rows = await GetAsync<List<SupabaseSubscriptionRow>>(
-            $"subscriptions?user_id=eq.{userId}&status=eq.PendingCheckout&select=*&order=starts_at.desc&limit=1",
+            $"subscriptions?user_id=eq.{userId}&status=eq.{SubscriptionStatus.PendingCheckout}&select=*&order=starts_at.desc&limit=1",
             ct);
 
         if (rows.Count == 0)
@@ -179,7 +180,7 @@ public class SupabaseDataStore : IAppDataStore
             $"subscriptions?id=eq.{rows[0].Id}",
             new
             {
-                status = "Active",
+                status = SubscriptionStatus.Active,
                 stripe_subscription_id = stripeSubscriptionId ?? rows[0].StripeSubscriptionId
             },
             ct);

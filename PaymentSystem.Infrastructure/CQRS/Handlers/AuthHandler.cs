@@ -21,23 +21,27 @@ public class AuthHandler :
 
     public async Task<RegistrationResult> Handle(RegisterUserCommand request, CancellationToken ct)
     {
-        if (await _dataStore.UserExistsByEmailAsync(request.Email, ct))
-            return new RegistrationResult(false, "User already exists.");
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        if (await _dataStore.UserExistsByEmailAsync(normalizedEmail, ct))
+            return new RegistrationResult(false, "An account with that email already exists.");
 
         var user = new User
         {
-            Email = request.Email,
-            FullName = request.FullName,
+            Email = normalizedEmail,
+            FullName = request.FullName.Trim(),
             PasswordHash = _authService.HashPassword(request.Password)
         };
 
         await _dataStore.AddUserAsync(user, ct);
-        return new RegistrationResult(true, "User created.");
+        return new RegistrationResult(true, "Account created successfully.");
     }
 
     public async Task<AuthTokenResult> Handle(LoginUserQuery request, CancellationToken ct)
     {
-        var user = await _dataStore.GetUserByEmailAsync(request.Email, ct);
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var user = await _dataStore.GetUserByEmailAsync(normalizedEmail, ct);
+
         if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
             return new AuthTokenResult(false, null);
 

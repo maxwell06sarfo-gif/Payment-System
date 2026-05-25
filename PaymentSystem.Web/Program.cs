@@ -69,7 +69,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "PaymentSystem",
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "PaymentSystemUsers"
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "PaymentSystemUsers",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
         };
     });
 
@@ -158,12 +160,24 @@ var app = builder.Build();
 // HTTP PIPELINE
 // ============================================================
 app.UseExceptionHandler();
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+
+if (!app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "PaymentSystem API v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "PaymentSystem API v1");
+        options.RoutePrefix = "swagger";
+    });
+}
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -248,8 +262,7 @@ app.MapPost("/api/subscriptions", async (
     if (!TryGetUserId(principal, out var userId))
         return Results.Unauthorized();
 
-    var origin = httpRequest.Headers.Origin.FirstOrDefault()
-        ?? $"{httpRequest.Scheme}://{httpRequest.Host}";
+    var origin = ResolveRedirectBase(httpRequest, app.Configuration);
 
     var result = await mediator.Send(new CreateSubscriptionCommand(
         userId,
@@ -263,6 +276,7 @@ app.MapPost("/api/subscriptions", async (
         : Results.BadRequest(result);
 })
 .RequireAuthorization()
+.RequireRateLimiting("Strict")
 .WithTags("Subscriptions")
 .WithSummary("Subscribe to Promotion, Gold, or Diamond plan");
 
@@ -320,6 +334,27 @@ static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
 {
     var rawUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
     return Guid.TryParse(rawUserId, out userId);
+}
+
+/// <summary>
+/// Resolves the redirect base URL for Stripe checkout success/cancel callbacks.
+/// Prefers an explicitly configured frontend URL to avoid trusting the client-supplied
+/// Origin header for redirect construction (open redirect prevention).
+/// </summary>
+static string ResolveRedirectBase(HttpRequest request, IConfiguration configuration)
+{
+    var configured = configuration["App:FrontendUrl"];
+    if (!string.IsNullOrWhiteSpace(configured))
+        return configured.TrimEnd('/');
+
+    var origin = request.Headers.Origin.FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+        return $"{request.Scheme}://{request.Host}";
+
+    var isAllowed = uri.Host is "localhost" or "127.0.0.1"
+        || origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
+
+    return isAllowed ? origin.TrimEnd('/') : $"{request.Scheme}://{request.Host}";
 }
 
 public partial class Program { }

@@ -1,4 +1,5 @@
 ﻿using System;
+using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.Enums;
 
 namespace PaymentSystem.Core.Entities;
@@ -10,7 +11,7 @@ public class Subscription
     public SubscriptionTier Tier { get; set; }
     public SubscriptionDuration Duration { get; set; }
     public string? StripeSubscriptionId { get; set; }
-    public string Status { get; set; } = "Inactive";
+    public string Status { get; set; } = SubscriptionStatus.Inactive;
     public decimal Price { get; set; }
     public string Currency { get; set; } = "USD";
     public DateTime StartsAt { get; set; } = DateTime.UtcNow;
@@ -18,6 +19,6 @@ public class Subscription
     public bool IsAutoRenewEnabled { get; set; } = true;
     public DateTime? LastExpirationNotificationAt { get; set; }
 
-    // Relational Navigation properties
+    // Relational navigation property
     public User? User { get; set; }
 }

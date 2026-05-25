@@ -15,8 +15,12 @@ public class StripeSubscriptionService
         _configuration = configuration;
         _planService = planService;
 
-        var apiKey = configuration["Stripe:SecretKey"] ?? "sk_test_mock_placeholder_key";
-        StripeConfiguration.ApiKey = apiKey;
+        var apiKey = configuration["Stripe:SecretKey"];
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            StripeConfiguration.ApiKey = apiKey;
+        }
     }
 
     public async Task<string> CreateStripeCustomerAsync(string email, string fullName)

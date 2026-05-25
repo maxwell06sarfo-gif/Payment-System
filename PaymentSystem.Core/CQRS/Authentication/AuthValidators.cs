@@ -7,16 +7,21 @@ public class RegisterUserCommandValidator : AbstractValidator<RegisterUserComman
     public RegisterUserCommandValidator()
     {
         RuleFor(x => x.Email)
-            .NotEmpty().WithMessage("Email address is mandatory.")
-            .EmailAddress().WithMessage("A valid email formatting structure is required.");
+            .NotEmpty().WithMessage("Email address is required.")
+            .EmailAddress().WithMessage("A valid email address is required.")
+            .MaximumLength(256).WithMessage("Email address must not exceed 256 characters.");
 
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Password field cannot be evaluated empty.")
-            .MinimumLength(8).WithMessage("Security standard requires a minimum password length of 8 characters.");
+            .NotEmpty().WithMessage("Password is required.")
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters.")
+            .Matches("[A-Z]").WithMessage("Password must contain at least one uppercase letter.")
+            .Matches("[a-z]").WithMessage("Password must contain at least one lowercase letter.")
+            .Matches("[0-9]").WithMessage("Password must contain at least one number.")
+            .Matches("[^a-zA-Z0-9]").WithMessage("Password must contain at least one special character.");
 
         RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage("Full Name descriptor is required.")
-            .MaximumLength(100).WithMessage("Name entry length exceeded corporate ledger limit.");
+            .NotEmpty().WithMessage("Full name is required.")
+            .MaximumLength(100).WithMessage("Full name must not exceed 100 characters.");
     }
 }
 
@@ -25,10 +30,10 @@ public class LoginUserQueryValidator : AbstractValidator<LoginUserQuery>
     public LoginUserQueryValidator()
     {
         RuleFor(x => x.Email)
-            .NotEmpty().WithMessage("Email routing parameter is required.")
-            .EmailAddress().WithMessage("Invalid email format.");
+            .NotEmpty().WithMessage("Email address is required.")
+            .EmailAddress().WithMessage("A valid email address is required.");
 
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Security credentials must be supplied.");
+            .NotEmpty().WithMessage("Password is required.");
     }
 }

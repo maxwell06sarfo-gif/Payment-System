@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.Entities;
 
 namespace PaymentSystem.Infrastructure.Data;
@@ -43,8 +44,8 @@ public class EfAppDataStore : IAppDataStore
     public async Task MarkActiveSubscriptionsReplacedAsync(Guid userId, CancellationToken ct)
     {
         await _db.Subscriptions
-            .Where(subscription => subscription.UserId == userId && subscription.Status == "Active")
-            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, "Replaced"), ct);
+            .Where(s => s.UserId == userId && s.Status == SubscriptionStatus.Active)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, SubscriptionStatus.Replaced), ct);
     }
 
     public async Task AddSubscriptionAsync(Subscription subscription, CancellationToken ct)
@@ -56,16 +57,18 @@ public class EfAppDataStore : IAppDataStore
     public async Task<int> ExpireAllPassedSubscriptionsAsync(DateTime now, CancellationToken ct)
     {
         return await _db.Subscriptions
-            .Where(s => s.Status != "Expired" && s.Status != "Canceled" && s.EndsAt < now)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, "Expired"), ct);
+            .Where(s => s.Status != SubscriptionStatus.Expired
+                     && s.Status != SubscriptionStatus.Canceled
+                     && s.EndsAt < now)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, SubscriptionStatus.Expired), ct);
     }
 
     public async Task<int> SendBulkExpirationNotificationsAsync(DateTime now, DateTime window, CancellationToken ct)
     {
         return await _db.Subscriptions
-            .Where(s => s.Status == "Active" 
-                && s.EndsAt >= now 
-                && s.EndsAt <= window 
+            .Where(s => s.Status == SubscriptionStatus.Active
+                && s.EndsAt >= now
+                && s.EndsAt <= window
                 && (s.LastExpirationNotificationAt == null || s.LastExpirationNotificationAt < now.AddDays(-1)))
             .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastExpirationNotificationAt, now), ct);
     }
@@ -75,26 +78,22 @@ public class EfAppDataStore : IAppDataStore
         string? stripeSubscriptionId,
         CancellationToken ct)
     {
-        // Use a transaction to ensure atomicity during high-concurrency activations
         using var transaction = await _db.Database.BeginTransactionAsync(ct);
         try
         {
             var subscription = await _db.Subscriptions
-                .Where(item => item.UserId == userId && item.Status == "PendingCheckout")
-                .OrderByDescending(item => item.StartsAt)
+                .Where(s => s.UserId == userId && s.Status == SubscriptionStatus.PendingCheckout)
+                .OrderByDescending(s => s.StartsAt)
                 .FirstOrDefaultAsync(ct);
 
             if (subscription is null)
-            {
                 return;
-            }
 
-            // Ensure old subscriptions are marked as replaced
             await MarkActiveSubscriptionsReplacedAsync(userId, ct);
 
-            subscription.Status = "Active";
+            subscription.Status = SubscriptionStatus.Active;
             subscription.StripeSubscriptionId = stripeSubscriptionId ?? subscription.StripeSubscriptionId;
-            
+
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }

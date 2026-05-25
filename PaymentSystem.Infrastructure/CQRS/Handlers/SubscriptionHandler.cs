@@ -1,4 +1,5 @@
 using MediatR;
+using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.CQRS.Subscriptions;
 using PaymentSystem.Core.DTOs;
 using PaymentSystem.Core.Entities;
@@ -100,7 +101,7 @@ public class SubscriptionHandler :
         };
 
         string? checkoutUrl = null;
-        var status = "Active";
+        var status = SubscriptionStatus.Active;
 
         if (_stripeService.CanUseHostedCheckout(request.Tier, request.Duration))
         {
@@ -117,7 +118,7 @@ public class SubscriptionHandler :
                 request.SuccessUrl,
                 request.CancelUrl);
 
-            status = "PendingCheckout";
+            status = SubscriptionStatus.PendingCheckout;
         }
         else if (string.IsNullOrWhiteSpace(user.StripeCustomerId))
         {
@@ -139,8 +140,9 @@ public class SubscriptionHandler :
             StripeSubscriptionId = checkoutUrl is null ? "demo_local_subscription" : null
         };
 
-        // Only replace existing subscriptions immediately if this is a local/demo activation
-        if (status == "Active")
+        // Only replace existing active subscriptions immediately for local/demo activations.
+        // For Stripe-hosted checkouts, replacement happens upon webhook confirmation.
+        if (status == SubscriptionStatus.Active)
         {
             await _dataStore.MarkActiveSubscriptionsReplacedAsync(user.Id, ct);
         }
@@ -189,9 +191,9 @@ public class SubscriptionHandler :
         // Only surfaces genuinely Active subscriptions.
         // Expired, Replaced, and PendingCheckout entries must NOT be shown as the user's
         // current plan — doing so caused stale data to appear after cancellations or
-        // failed checkouts (Bug fix: filter strictly by "Active" status).
+        // failed checkouts.
         return subscriptions
-            .Where(s => s.Status == "Active")
+            .Where(s => s.Status == SubscriptionStatus.Active)
             .OrderByDescending(s => s.StartsAt)
             .FirstOrDefault();
     }
@@ -199,7 +201,7 @@ public class SubscriptionHandler :
     private static SubscriptionResponse MapSubscription(Subscription subscription)
     {
         var daysUntilExpiration = Math.Max(0, (int)Math.Ceiling((subscription.EndsAt - DateTime.UtcNow).TotalDays));
-        var isExpiringSoon = subscription.Status == "Active" && daysUntilExpiration <= 7;
+        var isExpiringSoon = subscription.Status == SubscriptionStatus.Active && daysUntilExpiration <= 7;
         var notice = isExpiringSoon
             ? $"Your {subscription.Tier} subscription expires in {daysUntilExpiration} day{(daysUntilExpiration == 1 ? string.Empty : "s")}."
             : null;

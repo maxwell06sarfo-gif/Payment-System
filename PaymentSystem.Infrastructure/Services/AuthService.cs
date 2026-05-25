@@ -76,10 +76,14 @@ public class AuthService
 
     public string GenerateJwtToken(User user)
     {
-        var secretKey = _configuration["Jwt:Key"] 
-            ?? throw new InvalidOperationException("Security Critical: JWT Key is not configured in environment variables.");
-        var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem-Prod";
-        var audience = _configuration["Jwt:Audience"] ?? "PaymentSystem-App";
+        var secretKey = _configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Security Critical: JWT signing key is not configured. Set Jwt:Key via environment variable or user secrets.");
+
+        if (secretKey.Length < 32)
+            throw new InvalidOperationException("Security Critical: JWT signing key must be at least 32 characters (256 bits) for HMAC-SHA256.");
+
+        var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem";
+        var audience = _configuration["Jwt:Audience"] ?? "PaymentSystemUsers";
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -88,14 +92,15 @@ public class AuthService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.GivenName, user.FullName)
+            new Claim(ClaimTypes.GivenName, user.FullName),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7),
+            expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

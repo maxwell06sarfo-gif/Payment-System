@@ -1,7 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,15 +11,17 @@ namespace PaymentSystem.Web.Middleware;
 public class GlobalExceptionHandler : IExceptionHandler
 {
     private readonly ILogger<GlobalExceptionHandler> _logger;
+    private readonly IHostEnvironment _environment;
 
-    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHostEnvironment environment)
     {
         _logger = logger;
+        _environment = environment;
     }
 
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
-        System.Exception exception,
+        Exception exception,
         CancellationToken cancellationToken)
     {
         if (exception is ValidationException validationException)
@@ -64,10 +66,8 @@ public class GlobalExceptionHandler : IExceptionHandler
         var errorPayload = new
         {
             StatusCode = httpContext.Response.StatusCode,
-            Message = "A secure processing exception occurred on the core billing engine.",
-            Detailed = httpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.Hosting.IWebHostEnvironment)) is Microsoft.AspNetCore.Hosting.IWebHostEnvironment env && env.EnvironmentName == "Development"
-                ? exception.Message
-                : "Contact system administration for transaction correlation."
+            Message = "An unexpected error occurred. Please try again or contact support.",
+            Detail = _environment.IsDevelopment() ? exception.Message : null
         };
 
         await httpContext.Response.WriteAsJsonAsync(errorPayload, cancellationToken);
