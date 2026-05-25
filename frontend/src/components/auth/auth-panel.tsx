@@ -74,6 +74,11 @@ export function AuthPanel() {
         if (!registration.isSuccess) {
           throw new Error(registration.message);
         }
+
+        // Show success message and switch to login mode
+        setMessage("Account created successfully! Please sign in.");
+        setMode("login");
+        return;
       }
 
       const login = await api.login({
