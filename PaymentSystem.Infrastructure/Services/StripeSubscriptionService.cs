@@ -14,16 +14,30 @@ public class StripeSubscriptionService
     {
         _configuration = configuration;
         _planService = planService;
+        // Do NOT throw here — this service is always injected even when Stripe
+        // is not configured. The plans endpoint (and other non-Stripe paths)
+        // must succeed regardless. Configuration is validated lazily in the
+        // methods that actually talk to Stripe.
+    }
 
-        var apiKey = configuration["Stripe:SecretKey"];
+    /// <summary>
+    /// Configures the Stripe SDK API key and throws a clear exception if
+    /// the secret key is missing. Called only inside methods that need Stripe.
+    /// </summary>
+    private void EnsureStripeConfigured()
+    {
+        var apiKey = _configuration["Stripe:SecretKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
-            throw new InvalidOperationException("Stripe:SecretKey is missing. Provide Stripe__SecretKey via environment variables.");
-            
+            throw new InvalidOperationException(
+                "Stripe:SecretKey is missing. Provide Stripe__SecretKey via environment variables.");
+
         StripeConfiguration.ApiKey = apiKey;
     }
 
     public async Task<string> CreateStripeCustomerAsync(string email, string fullName)
     {
+        EnsureStripeConfigured();
+
         var options = new CustomerCreateOptions
         {
             Email = email,
@@ -53,6 +67,8 @@ public class StripeSubscriptionService
         string successUrl,
         string cancelUrl)
     {
+        EnsureStripeConfigured();
+
         var options = new SessionCreateOptions
         {
             Customer = stripeCustomerId,

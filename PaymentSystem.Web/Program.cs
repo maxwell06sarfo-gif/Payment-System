@@ -64,22 +64,29 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 // ---------------------------------------------------------------------------
 // FAIL-FAST VALIDATION
+// Jwt:Key is always required — without it the app cannot issue or verify tokens.
+// Stripe keys are only required when a real Stripe secret key is provided;
+// when Stripe is absent the app runs in demo mode (local billing engine only).
 // ---------------------------------------------------------------------------
-var criticalConfigs = new Dictionary<string, string>
-{
-    { "Jwt:Key", "Provide at least 32 characters via Jwt__Key." },
-    { "Stripe:SecretKey", "Required via Stripe__SecretKey." },
-    { "Stripe:WebhookSecret", "Required via Stripe__WebhookSecret." }
-};
+var jwtKeyVal = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKeyVal) || jwtKeyVal.Length < 32)
+    throw new InvalidOperationException(
+        "CRITICAL CONFIG MISSING: Jwt:Key. Provide at least 32 characters via Jwt__Key.");
 
-foreach (var config in criticalConfigs)
+var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? string.Empty;
+var stripeEnabled = stripeSecretKey.StartsWith("sk_", StringComparison.OrdinalIgnoreCase);
+
+if (stripeEnabled)
 {
-    var val = builder.Configuration[config.Key];
-    if (string.IsNullOrWhiteSpace(val) || (config.Key == "Jwt:Key" && val.Length < 32))
-        throw new InvalidOperationException($"CRITICAL CONFIG MISSING: {config.Key}. {config.Value}");
+    // When Stripe is active, the webhook secret is also required so that
+    // incoming webhook deliveries can be signature-verified.
+    var webhookSecret = builder.Configuration["Stripe:WebhookSecret"];
+    if (string.IsNullOrWhiteSpace(webhookSecret))
+        throw new InvalidOperationException(
+            "CRITICAL CONFIG MISSING: Stripe:WebhookSecret. Required via Stripe__WebhookSecret when Stripe is enabled.");
 }
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = jwtKeyVal!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -229,7 +236,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 // Simple health + version probe — lets us confirm which build Render is actually serving.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v4-di-resolution-fix" }))
+app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v5-startup-fix" }))
    .WithTags("Health")
    .ExcludeFromDescription();
 
