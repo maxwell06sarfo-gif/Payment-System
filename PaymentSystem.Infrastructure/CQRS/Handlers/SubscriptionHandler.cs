@@ -1,5 +1,4 @@
 using MediatR;
-using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.CQRS.Subscriptions;
 using PaymentSystem.Core.DTOs;
 using PaymentSystem.Core.Entities;

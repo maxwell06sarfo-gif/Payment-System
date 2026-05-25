@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.Entities;
+using PaymentSystem.Core.Enums;
 
 namespace PaymentSystem.Infrastructure.Data;
 

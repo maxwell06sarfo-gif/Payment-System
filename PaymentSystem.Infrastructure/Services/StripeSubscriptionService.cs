@@ -91,8 +91,8 @@ public class StripeSubscriptionService
             }
         };
 
-        var service = new SessionService();
-        Session session = await service.CreateAsync(options);
+        var service = new Stripe.Checkout.SessionService();
+        Stripe.Checkout.Session session = await service.CreateAsync(options);
         return session.Url;
     }
 
@@ -106,7 +106,7 @@ public class StripeSubscriptionService
             ReturnUrl = returnUrl,
         };
 
-        var service = new SessionService();
+        var service = new Stripe.BillingPortal.SessionService();
         var session = await service.CreateAsync(options);
         return session.Url;
     }
