@@ -208,13 +208,22 @@ public class SupabaseDataStore : IAppDataStore
 
     public Task SaveRefreshTokenAsync(RefreshToken token, CancellationToken ct)
     {
-        return SendAsync<object>(HttpMethod.Post, "refresh_tokens", token, ct);
+        var payload = new
+        {
+            id = token.Id,
+            token = token.Token,
+            userId = token.UserId,
+            expiresAt = token.ExpiresAt,
+            createdAt = token.CreatedAt,
+            revokedAt = token.RevokedAt
+        };
+        return SendAsync<object>(HttpMethod.Post, "refresh_tokens", payload, ct);
     }
 
     public async Task<RefreshToken?> GetRefreshTokenAsync(string token, CancellationToken ct)
     {
-        var tokens = await GetAsync<List<RefreshToken>>($"refresh_tokens?token=eq.{Escape(token)}&select=*&limit=1", ct);
-        return tokens.FirstOrDefault();
+        var tokens = await GetAsync<List<SupabaseRefreshTokenRow>>($"refresh_tokens?token=eq.{Escape(token)}&select=*&limit=1", ct);
+        return tokens.Count == 0 ? null : MapRefreshToken(tokens[0]);
     }
 
     private async Task PatchSubscriptionsByIdsAsync(
@@ -420,5 +429,39 @@ public class SupabaseDataStore : IAppDataStore
 
         [JsonPropertyName("last_expiration_notification_at")]
         public DateTime? LastExpirationNotificationAt { get; set; }
+    }
+
+    private sealed class SupabaseRefreshTokenRow
+    {
+        [JsonPropertyName("id")]
+        public Guid Id { get; set; }
+
+        [JsonPropertyName("token")]
+        public string Token { get; set; } = string.Empty;
+
+        [JsonPropertyName("userId")]
+        public Guid UserId { get; set; }
+
+        [JsonPropertyName("expiresAt")]
+        public DateTime ExpiresAt { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("revokedAt")]
+        public DateTime? RevokedAt { get; set; }
+    }
+
+    private static RefreshToken MapRefreshToken(SupabaseRefreshTokenRow row)
+    {
+        return new RefreshToken
+        {
+            Id = row.Id,
+            Token = row.Token,
+            UserId = row.UserId,
+            ExpiresAt = row.ExpiresAt,
+            CreatedAt = row.CreatedAt,
+            RevokedAt = row.RevokedAt
+        };
     }
 }
