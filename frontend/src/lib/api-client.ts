@@ -20,8 +20,16 @@ type BackendErrorPayload = {
   Detailed?: string;
 };
 
+const apiBase = process.env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error(
+    "[api-client] NEXT_PUBLIC_API_URL is not set. " +
+    "Add it to your Vercel environment variables and redeploy."
+  );
+}
+
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5149",
+  baseURL: apiBase ?? "http://localhost:5149",
   headers: {
     "Content-Type": "application/json",
   },

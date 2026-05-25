@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { api, getApiErrorMessage } from "@/lib/api-client";
-import { getToken, saveToken } from "@/lib/token";
+import { getToken, saveToken, clearToken } from "@/lib/token";
 import type { ApiFailure } from "@/lib/types";
 
 type AuthMode = "login" | "register";
@@ -50,9 +50,15 @@ export function AuthPanel() {
   }, [form.password.length]);
 
   useEffect(() => {
-    if (getToken()) {
-      router.replace("/dashboard");
-    }
+    const token = getToken();
+    if (!token) return;
+
+    // Token exists in storage — verify it is still accepted by the API before
+    // redirecting. A stale or expired token must land back on the login screen,
+    // not silently break the dashboard.
+    api.getProfile()
+      .then(() => router.replace("/dashboard"))
+      .catch(() => clearToken());
   }, [router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

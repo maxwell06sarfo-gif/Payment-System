@@ -24,7 +24,7 @@ var builder = WebApplication.CreateBuilder(args);
 // back to EF Core with an in-memory database, which keeps integration tests
 // isolated and removes the need for a live Supabase instance during local dev.
 // ---------------------------------------------------------------------------
-var useSupabase = builder.Configuration.GetValue<bool>("Supabase:UseRestStore")
+var useSupabase = builder.Configuration["Supabase:UseRestStore"] == "true"
     && !builder.Environment.IsEnvironment("Testing")
     && !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]);
 
