@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using PaymentSystem.Core.CQRS.Authentication;
 using PaymentSystem.Core.Entities;
 using PaymentSystem.Infrastructure.Data;
@@ -14,11 +15,13 @@ public class AuthHandler :
 {
     private readonly IAppDataStore _dataStore;
     private readonly AuthService _authService;
+    private readonly ILogger<AuthHandler> _logger;
 
-    public AuthHandler(IAppDataStore dataStore, AuthService authService)
+    public AuthHandler(IAppDataStore dataStore, AuthService authService, ILogger<AuthHandler> logger)
     {
         _dataStore = dataStore;
         _authService = authService;
+        _logger = logger;
     }
 
     public async Task<RegistrationResult> Handle(RegisterUserCommand request, CancellationToken ct)
@@ -41,18 +44,26 @@ public class AuthHandler :
 
     public async Task<AuthTokenResult> Handle(LoginUserQuery request, CancellationToken ct)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var user = await _dataStore.GetUserByEmailAsync(normalizedEmail, ct);
+        try
+        {
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            var user = await _dataStore.GetUserByEmailAsync(normalizedEmail, ct);
 
-        if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
+            if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
+                return new AuthTokenResult(false, null, null);
+
+            var jwt = _authService.GenerateJwtToken(user);
+            var refreshToken = GenerateRefreshToken(user.Id);
+
+            await _dataStore.SaveRefreshTokenAsync(refreshToken, ct);
+
+            return new AuthTokenResult(true, jwt, refreshToken.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during login for email: {Email}", request.Email);
             return new AuthTokenResult(false, null, null);
-
-        var jwt = _authService.GenerateJwtToken(user);
-        var refreshToken = GenerateRefreshToken(user.Id);
-
-        await _dataStore.SaveRefreshTokenAsync(refreshToken, ct);
-
-        return new AuthTokenResult(true, jwt, refreshToken.Token);
+        }
     }
 
     public async Task<AuthTokenResult> Handle(RefreshTokenCommand request, CancellationToken ct)
