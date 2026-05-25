@@ -14,7 +14,9 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 
     public AuthEndpointsTests(WebApplicationFactory<Program> factory)
     {
-        // Instantiates an isolated, in-memory instance of the web application pipeline
+        // Stand up a fully in-memory instance of the web host.
+        // "Testing" environment keeps the EF in-memory database active
+        // and suppresses any Supabase or Stripe network calls.
         _client = factory.WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
@@ -31,7 +33,8 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Register_And_Login_Pipeline_Returns_Valid_Token()
     {
-        // Arrange: Generate unique user credentials for the test pass
+        // Use a fresh GUID-suffixed address so repeated test runs never collide
+        // on the unique email constraint, even if the in-memory DB is reused.
         var testEmail = $"testuser_{System.Guid.NewGuid()}@example.com";
 
         var registerPayload = new UserRegisterRequest(
@@ -45,23 +48,19 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
             "SecurePassword123!"
         );
 
-        // Act - Part 1: Submit a registration request to the in-memory server
+        // Part 1 — registration
         var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", registerPayload);
-
-        // Assert - Part 1: Ensure the account was successfully created
         Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
 
-        // Act - Part 2: Attempt to authenticate with the newly created account
+        // Part 2 — login with the account we just created
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", loginPayload);
-
-        // Assert - Part 2: Verify that authentication is successful and returns a JWT token
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
         var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResultStub>();
         Assert.NotNull(loginResult);
-        Assert.False(string.IsNullOrWhiteSpace(loginResult.Token), "The authentication engine failed to issue a valid JWT string.");
+        Assert.False(string.IsNullOrWhiteSpace(loginResult.Token), "Authentication succeeded but no JWT was returned.");
     }
 
-    // Direct inline stub to safely deserialize the dynamic anonymous token payload object
+    // Minimal stub to deserialise the token from the anonymous response object.
     private record LoginResultStub(string Token);
 }

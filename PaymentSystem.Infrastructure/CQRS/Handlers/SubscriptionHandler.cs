@@ -140,8 +140,8 @@ public class SubscriptionHandler :
             StripeSubscriptionId = checkoutUrl is null ? "demo_local_subscription" : null
         };
 
-        // Only replace existing active subscriptions immediately for local/demo activations.
-        // For Stripe-hosted checkouts, replacement happens upon webhook confirmation.
+        // For Stripe-hosted checkouts, replacement happens when the webhook fires — not here.
+        // For local/demo activations we can promote immediately since there is no async handoff.
         if (status == SubscriptionStatus.Active)
         {
             await _dataStore.MarkActiveSubscriptionsReplacedAsync(user.Id, ct);
@@ -188,10 +188,9 @@ public class SubscriptionHandler :
 
     private static Subscription? GetCurrentSubscription(IEnumerable<Subscription> subscriptions)
     {
-        // Only surfaces genuinely Active subscriptions.
-        // Expired, Replaced, and PendingCheckout entries must NOT be shown as the user's
-        // current plan — doing so caused stale data to appear after cancellations or
-        // failed checkouts.
+        // PendingCheckout, Replaced, and Expired records must never surface as the user's
+        // current plan. This tripped us up after cancellations — the most-recent record was
+        // being returned regardless of status, causing stale plan data to show in the UI.
         return subscriptions
             .Where(s => s.Status == SubscriptionStatus.Active)
             .OrderByDescending(s => s.StartsAt)

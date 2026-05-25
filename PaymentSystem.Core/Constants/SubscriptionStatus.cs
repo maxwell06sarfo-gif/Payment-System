@@ -1,26 +1,41 @@
 namespace PaymentSystem.Core.Constants;
 
 /// <summary>
-/// Well-known subscription status values used across the domain and data layers.
-/// Using this class prevents silent typos from silently breaking state transitions.
+/// Canonical status values for a subscription record.
+///
+/// Centralising these as typed constants rather than scattering raw strings
+/// across the codebase means a typo fails at compile time, not silently at
+/// runtime during a state transition. Any new status belongs here first.
 /// </summary>
 public static class SubscriptionStatus
 {
-    /// <summary>The subscription is current and grants access to the subscribed tier.</summary>
+    /// <summary>The subscription is in good standing and grants access to the subscribed tier.</summary>
     public const string Active = "Active";
 
-    /// <summary>The subscription record exists but has not been activated yet.</summary>
+    /// <summary>
+    /// The record exists but has never been activated.
+    /// Typical for accounts created before a first payment is confirmed.
+    /// </summary>
     public const string Inactive = "Inactive";
 
-    /// <summary>The subscription period has passed its end date and was not renewed.</summary>
+    /// <summary>
+    /// The billing period ended without renewal.
+    /// Written exclusively by the background expiry monitor — never set by hand.
+    /// </summary>
     public const string Expired = "Expired";
 
-    /// <summary>The subscription was cancelled before its natural end date.</summary>
+    /// <summary>The user cancelled before the natural end date. Retained for audit and refund reference.</summary>
     public const string Canceled = "Canceled";
 
-    /// <summary>The subscription was superseded by a newer subscription for the same user.</summary>
+    /// <summary>
+    /// This subscription was superseded when the user purchased a new plan mid-cycle.
+    /// Kept so billing history remains complete and attributable.
+    /// </summary>
     public const string Replaced = "Replaced";
 
-    /// <summary>A Stripe checkout session was created but the user has not yet completed payment.</summary>
+    /// <summary>
+    /// A Stripe Checkout session has been opened but the user has not completed payment yet.
+    /// If the session lapses, the expiry monitor will clean this up like any other stale record.
+    /// </summary>
     public const string PendingCheckout = "PendingCheckout";
 }

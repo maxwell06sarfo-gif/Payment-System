@@ -1,4 +1,4 @@
-﻿﻿using System;
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -66,6 +66,8 @@ public class AuthService
                 HashAlgorithmName.SHA256,
                 keySize);
 
+            // Constant-time comparison prevents timing attacks from revealing
+            // whether a partial password match exists in the stored hash.
             return CryptographicOperations.FixedTimeEquals(hash, testHash);
         }
         catch
@@ -77,10 +79,10 @@ public class AuthService
     public string GenerateJwtToken(User user)
     {
         var secretKey = _configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("Security Critical: JWT signing key is not configured. Set Jwt:Key via environment variable or user secrets.");
+            ?? throw new InvalidOperationException("JWT signing key is not configured. Provide Jwt:Key via environment variable or user secrets.");
 
         if (secretKey.Length < 32)
-            throw new InvalidOperationException("Security Critical: JWT signing key must be at least 32 characters (256 bits) for HMAC-SHA256.");
+            throw new InvalidOperationException("JWT signing key must be at least 32 characters (256 bits) for HMAC-SHA256.");
 
         var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem";
         var audience = _configuration["Jwt:Audience"] ?? "PaymentSystemUsers";

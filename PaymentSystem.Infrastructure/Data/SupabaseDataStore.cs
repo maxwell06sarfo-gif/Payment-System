@@ -172,7 +172,7 @@ public class SupabaseDataStore : IAppDataStore
             return;
         }
 
-        // Ensure old subscriptions are marked as replaced now that the new one is confirmed
+        // Payment confirmed — retire any still-active subscription before promoting this one.
         await MarkActiveSubscriptionsReplacedAsync(userId, ct);
 
         await SendAsync<object>(
@@ -231,7 +231,8 @@ public class SupabaseDataStore : IAppDataStore
 
     private async Task<T> SendAsync<T>(HttpRequestMessage request, CancellationToken ct)
     {
-        // Apply security headers to every individual request message
+        // Auth headers are applied per-request rather than on the shared HttpClient
+        // so we never risk leaking credentials across concurrent requests.
         request.Headers.TryAddWithoutValidation("apikey", _serviceRoleKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -243,7 +244,8 @@ public class SupabaseDataStore : IAppDataStore
         {
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                // Log details internally, throw generic error to prevent reconnaissance
+                // Surface a generic message outward — the raw Supabase error must not
+                // leak to callers as it could aid reconnaissance of the data schema.
                 throw new InvalidOperationException("Data storage service is currently unavailable.");
             }
             throw new InvalidOperationException(

@@ -17,12 +17,13 @@ using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ============================================================
-// DATA STORE REGISTRATION
-// Conditionally wire Supabase REST or local in-memory EF Core.
-// Supabase is only used when the URL and ServiceRoleKey are
-// both configured and the environment is not "Testing".
-// ============================================================
+// ---------------------------------------------------------------------------
+// DATA STORE
+// Supabase REST is used when explicitly enabled, a service role key is present,
+// and we are not running inside the test harness. Any other combination falls
+// back to EF Core with an in-memory database, which keeps integration tests
+// isolated and removes the need for a live Supabase instance during local dev.
+// ---------------------------------------------------------------------------
 var useSupabase = builder.Configuration.GetValue<bool>("Supabase:UseRestStore")
     && !builder.Environment.IsEnvironment("Testing")
     && !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]);
@@ -38,24 +39,29 @@ else
     builder.Services.AddScoped<IAppDataStore, EfAppDataStore>();
 }
 
-// ============================================================
+// ---------------------------------------------------------------------------
 // INFRASTRUCTURE SERVICES
-// Registers: MediatR, FluentValidation, CQRS pipeline,
-// application services, and the expiry background service.
-// ============================================================
+// MediatR, FluentValidation, the CQRS pipeline behavior, application services,
+// and the background subscription expiry monitor all register here.
+// ---------------------------------------------------------------------------
 builder.Services.AddInfrastructureServices();
 
-// ============================================================
-// JSON + ENUM SERIALISATION
-// ============================================================
+// ---------------------------------------------------------------------------
+// JSON / ENUM SERIALISATION
+// Enums are written as strings in the JSON contract so API consumers get
+// readable values ("Gold") instead of raw integers (2).
+// ---------------------------------------------------------------------------
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
-// ============================================================
-// JWT AUTHENTICATION + AUTHORISATION
-// ============================================================
+// ---------------------------------------------------------------------------
+// JWT AUTHENTICATION
+// ClockSkew is zeroed out so tokens expire exactly when they should.
+// A non-zero skew is a common source of "why is my expired token still working"
+// bugs that are hard to reproduce outside production.
+// ---------------------------------------------------------------------------
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -77,23 +83,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// ============================================================
-// RATE LIMITING — Essential for 1 Million+ Concurrent Users
-// ============================================================
+// ---------------------------------------------------------------------------
+// RATE LIMITING
+// A fixed-window limiter on auth and mutation endpoints. The queue absorbs
+// short bursts without immediately returning 429s to legitimate clients.
+// ---------------------------------------------------------------------------
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddFixedWindowLimiter("Strict", opt =>
     {
         opt.Window = TimeSpan.FromSeconds(10);
-        opt.PermitLimit = 100; // Allow 100 requests per 10 seconds per user/IP
+        opt.PermitLimit = 100;
         opt.QueueLimit = 20;
     });
 });
 
-// ============================================================
-// CORS — accept local development and Vercel preview URLs
-// ============================================================
+// ---------------------------------------------------------------------------
+// CORS
+// Localhost and any Vercel preview deployment are permitted. All other origins
+// are blocked. This list should be tightened to an explicit allow-list once
+// the production domain is finalised.
+// ---------------------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -112,9 +123,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ============================================================
-// GLOBAL EXCEPTION HANDLER + SWAGGER
-// ============================================================
+// ---------------------------------------------------------------------------
+// EXCEPTION HANDLER + SWAGGER
+// ---------------------------------------------------------------------------
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
@@ -127,7 +138,6 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Subscription billing API — Promotion, Gold, Diamond plans via Stripe."
     });
 
-    // Allow JWT testing from Swagger UI
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -156,9 +166,12 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// ============================================================
-// HTTP PIPELINE
-// ============================================================
+// ---------------------------------------------------------------------------
+// MIDDLEWARE PIPELINE
+// Order matters here. Exception handling must be outermost so it catches errors
+// from every subsequent middleware. Security headers go on before CORS so they
+// are present on preflight responses as well as real requests.
+// ---------------------------------------------------------------------------
 app.UseExceptionHandler();
 
 if (!app.Environment.IsDevelopment())
@@ -183,9 +196,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// ============================================================
+// ---------------------------------------------------------------------------
 // AUTH ENDPOINTS
-// ============================================================
+// ---------------------------------------------------------------------------
 app.MapPost("/api/auth/register", async (
     RegisterUserCommand command,
     IMediator mediator) =>
@@ -212,17 +225,17 @@ app.MapPost("/api/auth/login", async (
 .WithTags("Authentication")
 .WithSummary("Log in and receive a JWT token");
 
-// ============================================================
+// ---------------------------------------------------------------------------
 // SUBSCRIPTION PLAN ENDPOINTS
-// ============================================================
+// ---------------------------------------------------------------------------
 app.MapGet("/api/subscriptions/plans", async (IMediator mediator) =>
     Results.Ok(await mediator.Send(new GetSubscriptionPlansQuery())))
 .WithTags("Subscriptions")
 .WithSummary("Get all available subscription plans with pricing");
 
-// ============================================================
-// USER PROFILE ENDPOINT
-// ============================================================
+// ---------------------------------------------------------------------------
+// USER PROFILE
+// ---------------------------------------------------------------------------
 app.MapGet("/api/users/me", async (
     ClaimsPrincipal principal,
     IMediator mediator) =>
@@ -250,9 +263,9 @@ app.MapGet("/api/subscriptions/current", async (
 .WithTags("Subscriptions")
 .WithSummary("Get the current user's active subscription");
 
-// ============================================================
-// CREATE SUBSCRIPTION ENDPOINT
-// ============================================================
+// ---------------------------------------------------------------------------
+// CREATE SUBSCRIPTION
+// ---------------------------------------------------------------------------
 app.MapPost("/api/subscriptions", async (
     CreateSubscriptionRequest request,
     ClaimsPrincipal principal,
@@ -280,9 +293,12 @@ app.MapPost("/api/subscriptions", async (
 .WithTags("Subscriptions")
 .WithSummary("Subscribe to Promotion, Gold, or Diamond plan");
 
-// ============================================================
-// STRIPE WEBHOOK ENDPOINT
-// ============================================================
+// ---------------------------------------------------------------------------
+// STRIPE WEBHOOK
+// Stripe signs every webhook delivery with a HMAC signature. We verify it
+// before trusting any payload content — an unsigned or mis-signed request
+// is rejected outright rather than processed partially.
+// ---------------------------------------------------------------------------
 app.MapPost("/api/stripe/webhook", async (
     HttpRequest request,
     IConfiguration configuration,
@@ -327,9 +343,9 @@ app.MapPost("/api/stripe/webhook", async (
 
 app.Run();
 
-// ============================================================
+// ---------------------------------------------------------------------------
 // HELPERS
-// ============================================================
+// ---------------------------------------------------------------------------
 static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
 {
     var rawUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -337,9 +353,12 @@ static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
 }
 
 /// <summary>
-/// Resolves the redirect base URL for Stripe checkout success/cancel callbacks.
-/// Prefers an explicitly configured frontend URL to avoid trusting the client-supplied
-/// Origin header for redirect construction (open redirect prevention).
+/// Resolves the base URL used for Stripe checkout redirect callbacks.
+///
+/// An explicit App:FrontendUrl in configuration is always preferred. Falling back
+/// to the request Origin header is a last resort for local dev only — accepting an
+/// arbitrary caller-supplied origin for redirect construction would be an open
+/// redirect, so the fallback is restricted to known-safe hosts.
 /// </summary>
 static string ResolveRedirectBase(HttpRequest request, IConfiguration configuration)
 {

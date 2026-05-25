@@ -1,9 +1,10 @@
 namespace PaymentSystem.Web.Middleware;
 
 /// <summary>
-/// Applies a hardened set of HTTP security response headers to every outbound response.
-/// This middleware should be registered early in the pipeline, before CORS and authentication,
-/// so headers are present on all responses including error and redirect responses.
+/// Adds a hardened set of HTTP security headers to every outbound response.
+///
+/// Registered early in the pipeline so headers are present on all responses —
+/// including errors, redirects, and OPTIONS preflight — not just successful ones.
 /// </summary>
 public class SecurityHeadersMiddleware
 {
@@ -18,22 +19,23 @@ public class SecurityHeadersMiddleware
     {
         var headers = context.Response.Headers;
 
-        // Prevent MIME-type sniffing — browsers must honour declared Content-Type.
+        // Prevent MIME-type sniffing — browsers must honour the declared Content-Type.
         headers["X-Content-Type-Options"] = "nosniff";
 
-        // Block this application from being embedded in any frame or iframe.
+        // Disallow this application from being framed by any other origin.
         headers["X-Frame-Options"] = "DENY";
 
-        // Enable the browser's built-in XSS filter and block the page on detection.
+        // Instruct browsers that support the legacy XSS auditor to block the page on detection.
         headers["X-XSS-Protection"] = "1; mode=block";
 
-        // Only send the origin when navigating to a secure context from a secure context.
+        // Send the full origin only when navigating between two secure contexts.
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
-        // Restrict access to sensitive browser APIs that this application does not use.
+        // Restrict browser feature access to what this application actually uses.
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
 
-        // Prevent sensitive API responses from being cached by intermediate proxies.
+        // API responses must not be served from a cache. Stale auth or subscription
+        // data in a shared proxy cache would be a genuine security issue.
         headers["Cache-Control"] = "no-store";
 
         await _next(context);
