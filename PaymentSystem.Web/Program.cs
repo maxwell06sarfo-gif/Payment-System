@@ -26,7 +26,8 @@ var builder = WebApplication.CreateBuilder(args);
 // ---------------------------------------------------------------------------
 var useSupabase = builder.Configuration["Supabase:UseRestStore"] == "true"
     && !builder.Environment.IsEnvironment("Testing")
-    && !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]);
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"])
+    && !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:Url"]);
 
 if (useSupabase)
 {
@@ -65,13 +66,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var secretKey = builder.Configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+        {
+            throw new InvalidOperationException("Jwt:Key is missing or too short. Provide at least 32 characters via the Jwt__Key environment variable on Render.");
+        }
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(
-                    builder.Configuration["Jwt:Key"]
-                    ?? throw new InvalidOperationException("Jwt:Key is not configured."))),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
             ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "PaymentSystem",
             ValidateAudience = true,
@@ -214,7 +218,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 // Simple health + version probe — lets us confirm which build Render is actually serving.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v3-cors-fixed" }))
+app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v4-di-resolution-fix" }))
    .WithTags("Health")
    .ExcludeFromDescription();
 
