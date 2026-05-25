@@ -121,16 +121,18 @@ builder.Services.AddCors(options =>
                 if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
                     return false;
 
-                // Explicit allow-list takes priority — use this for production URLs.
-                if (explicitOrigins.Count > 0 && explicitOrigins.Contains(origin.TrimEnd('/')))
-                    return true;
-
                 // Always permit localhost for dev.
                 if (uri.Host is "localhost" or "127.0.0.1")
                     return true;
 
                 // Permit all Vercel preview deployments.
-                return origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
+                if (origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                // Explicit allow-list takes priority — use this for production URLs.
+                if (explicitOrigins.Count > 0 && explicitOrigins.Contains(origin.TrimEnd('/')))
+                    return true;
+                return false; // If none of the above, deny.
             })
             .AllowAnyHeader()
             .AllowAnyMethod();
