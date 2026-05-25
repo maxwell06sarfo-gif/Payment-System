@@ -31,7 +31,12 @@ var useSupabase = builder.Configuration["Supabase:UseRestStore"] == "true"
 
 if (useSupabase)
 {
-    builder.Services.AddHttpClient<IAppDataStore, SupabaseDataStore>();
+    builder.Services.AddHttpClient<IAppDataStore, SupabaseDataStore>()
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            // Optimise for 1 million concurrent users by increasing connection pooling
+            MaxConnectionsPerServer = 500
+        });
 }
 else
 {
@@ -58,17 +63,23 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 // ---------------------------------------------------------------------------
-// JWT AUTHENTICATION
-// ClockSkew is zeroed out so tokens expire exactly when they should.
-// A non-zero skew is a common source of "why is my expired token still working"
-// bugs that are hard to reproduce outside production.
+// FAIL-FAST VALIDATION
 // ---------------------------------------------------------------------------
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+var criticalConfigs = new Dictionary<string, string>
 {
-    throw new InvalidOperationException("Jwt:Key is missing or too short. Provide at least 32 characters via the Jwt__Key environment variable on Render.");
+    { "Jwt:Key", "Provide at least 32 characters via Jwt__Key." },
+    { "Stripe:SecretKey", "Required via Stripe__SecretKey." },
+    { "Stripe:WebhookSecret", "Required via Stripe__WebhookSecret." }
+};
+
+foreach (var config in criticalConfigs)
+{
+    var val = builder.Configuration[config.Key];
+    if (string.IsNullOrWhiteSpace(val) || (config.Key == "Jwt:Key" && val.Length < 32))
+        throw new InvalidOperationException($"CRITICAL CONFIG MISSING: {config.Key}. {config.Value}");
 }
 
+var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using PaymentSystem.Core.Constants;
 using PaymentSystem.Core.Entities;
 using PaymentSystem.Core.Enums;
@@ -12,11 +13,12 @@ namespace PaymentSystem.Infrastructure.Data;
 public class SupabaseDataStore : IAppDataStore
 {
     private readonly HttpClient _http;
+    private readonly ILogger<SupabaseDataStore> _logger;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string _restUrl;
     private readonly string _serviceRoleKey;
 
-    public SupabaseDataStore(HttpClient http, IConfiguration configuration)
+    public SupabaseDataStore(HttpClient http, IConfiguration configuration, ILogger<SupabaseDataStore> logger)
     {
         var supabaseUrl = configuration["Supabase:Url"]?.TrimEnd('/');
         _serviceRoleKey = configuration["Supabase:ServiceRoleKey"] ?? string.Empty;
@@ -27,6 +29,7 @@ public class SupabaseDataStore : IAppDataStore
         }
 
         _http = http;
+        _logger = logger;
         _restUrl = $"{supabaseUrl}/rest/v1";
     }
 
@@ -50,21 +53,22 @@ public class SupabaseDataStore : IAppDataStore
 
     public async Task<User?> GetUserWithSubscriptionsAsync(Guid userId, CancellationToken ct)
     {
+        // Optimized: Fetch User and nested Subscriptions in a single round-trip.
         var users = await GetAsync<List<SupabaseUserRow>>(
-            $"users?id=eq.{userId}&select=*&limit=1",
+            $"users?id=eq.{userId}&select=*,subscriptions(*)&limit=1",
             ct);
 
         if (users.Count == 0)
         {
             return null;
         }
+        var row = users[0];
+        var user = MapUser(row);
+        user.Subscriptions = row.Subscriptions
+            .Select(MapSubscription)
+            .OrderByDescending(s => s.StartsAt)
+            .ToList();
 
-        var subscriptions = await GetAsync<List<SupabaseSubscriptionRow>>(
-            $"subscriptions?user_id=eq.{userId}&select=*&order=starts_at.desc",
-            ct);
-
-        var user = MapUser(users[0]);
-        user.Subscriptions = subscriptions.Select(MapSubscription).ToList();
         return user;
     }
 
@@ -242,6 +246,9 @@ public class SupabaseDataStore : IAppDataStore
 
         if (!response.IsSuccessStatusCode)
         {
+            // Log the actual error for the developer to see in Render logs
+            _logger.LogError("Supabase API Error: {StatusCode} - {Content}", response.StatusCode, content);
+
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 // Surface a generic message outward — the raw Supabase error must not
@@ -344,6 +351,9 @@ public class SupabaseDataStore : IAppDataStore
 
         [JsonPropertyName("created_at")]
         public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("subscriptions")]
+        public List<SupabaseSubscriptionRow> Subscriptions { get; set; } = new();
     }
 
     private sealed class SupabaseSubscriptionRow
