@@ -78,7 +78,7 @@ public class AuthHandler :
 
         // Revoke old token
         storedToken.RevokedAt = DateTime.UtcNow;
-        await _dataStore.SaveRefreshTokenAsync(storedToken, ct); // Assuming Save updates if exists
+        await _dataStore.SaveRefreshTokenAsync(storedToken, ct);
 
         // Generate new pair
         var jwt = _authService.GenerateJwtToken(user);

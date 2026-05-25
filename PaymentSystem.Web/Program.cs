@@ -229,7 +229,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// Simple health + version probe — lets us confirm which build Render is actually serving.
+// Health check endpoint — confirms the service is running and reports the current build version.
 app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v6-build-failure-fixed" }))
    .WithTags("Health")
    .ExcludeFromDescription();
