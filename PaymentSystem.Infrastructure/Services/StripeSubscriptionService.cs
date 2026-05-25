@@ -70,7 +70,7 @@ public class StripeSubscriptionService
     {
         EnsureStripeConfigured();
 
-        var options = new SessionCreateOptions
+        var options = new Stripe.Checkout.SessionCreateOptions
         {
             Customer = stripeCustomerId,
             Mode = "subscription",
@@ -100,7 +100,7 @@ public class StripeSubscriptionService
     {
         EnsureStripeConfigured();
 
-        var options = new SessionCreateOptions
+        var options = new Stripe.BillingPortal.SessionCreateOptions
         {
             Customer = stripeCustomerId,
             ReturnUrl = returnUrl,

@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentSystem.Core.CQRS.Authentication;
+using PaymentSystem.Core.Services;
 using PaymentSystem.Infrastructure.BackgroundServices;
 using PaymentSystem.Infrastructure.CQRS.Behaviors;
 using PaymentSystem.Infrastructure.Services;

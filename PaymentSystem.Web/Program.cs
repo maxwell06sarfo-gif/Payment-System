@@ -267,7 +267,7 @@ app.MapPost("/api/auth/refresh", async (
     RefreshTokenRequest request,
     IMediator mediator) =>
 {
-    var result = await mediator.Send(new RefreshTokenCommand(request.RefreshToken));
+    var result = await mediator.Send(new RefreshTokenCommand(request.Token));
     return result.IsAuthenticated
         ? Results.Ok(result)
         : Results.Unauthorized();

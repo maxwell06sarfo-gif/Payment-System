@@ -45,7 +45,7 @@ public class AuthHandler :
         var user = await _dataStore.GetUserByEmailAsync(normalizedEmail, ct);
 
         if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
-            return new AuthTokenResult(false, null);
+            return new AuthTokenResult(false, null, null);
 
         var jwt = _authService.GenerateJwtToken(user);
         var refreshToken = GenerateRefreshToken(user.Id);
@@ -57,13 +57,13 @@ public class AuthHandler :
 
     public async Task<AuthTokenResult> Handle(RefreshTokenCommand request, CancellationToken ct)
     {
-        var storedToken = await _dataStore.GetRefreshTokenAsync(request.RefreshToken, ct);
+        var storedToken = await _dataStore.GetRefreshTokenAsync(request.Token, ct);
 
         if (storedToken == null || !storedToken.IsActive)
-            return new AuthTokenResult(false, null);
+            return new AuthTokenResult(false, null, null);
 
         var user = await _dataStore.GetUserWithSubscriptionsAsync(storedToken.UserId, ct);
-        if (user == null) return new AuthTokenResult(false, null);
+        if (user == null) return new AuthTokenResult(false, null, null);
 
         // Revoke old token
         storedToken.RevokedAt = DateTime.UtcNow;
