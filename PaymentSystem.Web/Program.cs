@@ -63,19 +63,19 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // A non-zero skew is a common source of "why is my expired token still working"
 // bugs that are hard to reproduce outside production.
 // ---------------------------------------------------------------------------
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Key is missing or too short. Provide at least 32 characters via the Jwt__Key environment variable on Render.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var secretKey = builder.Configuration["Jwt:Key"];
-        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
-        {
-            throw new InvalidOperationException("Jwt:Key is missing or too short. Provide at least 32 characters via the Jwt__Key environment variable on Render.");
-        }
-
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "PaymentSystem",
             ValidateAudience = true,

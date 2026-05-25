@@ -16,11 +16,10 @@ public class StripeSubscriptionService
         _planService = planService;
 
         var apiKey = configuration["Stripe:SecretKey"];
-
-        if (!string.IsNullOrWhiteSpace(apiKey))
-        {
-            StripeConfiguration.ApiKey = apiKey;
-        }
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("Stripe:SecretKey is missing. Provide Stripe__SecretKey via environment variables.");
+            
+        StripeConfiguration.ApiKey = apiKey;
     }
 
     public async Task<string> CreateStripeCustomerAsync(string email, string fullName)

@@ -78,11 +78,9 @@ public class AuthService
 
     public string GenerateJwtToken(User user)
     {
-        var secretKey = _configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("JWT signing key is not configured. Provide Jwt:Key via environment variable or user secrets.");
-
-        if (secretKey.Length < 32)
-            throw new InvalidOperationException("JWT signing key must be at least 32 characters (256 bits) for HMAC-SHA256.");
+        var secretKey = _configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+            throw new InvalidOperationException("JWT signing key is missing or too short. Provide at least 32 characters via the Jwt__Key environment variable.");
 
         var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem";
         var audience = _configuration["Jwt:Audience"] ?? "PaymentSystemUsers";
