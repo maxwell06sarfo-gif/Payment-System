@@ -257,7 +257,10 @@ app.MapPost("/api/auth/login", async (
     var result = await mediator.Send(query);
     return result.IsAuthenticated
         ? Results.Ok(result)
-        : Results.Unauthorized();
+        : Results.Problem(
+            statusCode: 401,
+            title: "Unauthorized",
+            detail: "Invalid email or password");
 })
 .RequireRateLimiting("Strict")
 .WithTags("Authentication")
