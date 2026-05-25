@@ -212,10 +212,10 @@ public class SupabaseDataStore : IAppDataStore
         {
             id = token.Id,
             token = token.Token,
-            userId = token.UserId,
-            expiresAt = token.ExpiresAt,
-            createdAt = token.CreatedAt,
-            revokedAt = token.RevokedAt
+            userid = token.UserId,
+            expiresat = token.ExpiresAt,
+            createdat = token.CreatedAt,
+            revokedat = token.RevokedAt
         };
         return SendAsync<object>(HttpMethod.Post, "refresh_tokens", payload, ct);
     }
@@ -439,16 +439,16 @@ public class SupabaseDataStore : IAppDataStore
         [JsonPropertyName("token")]
         public string Token { get; set; } = string.Empty;
 
-        [JsonPropertyName("userId")]
+        [JsonPropertyName("userid")]
         public Guid UserId { get; set; }
 
-        [JsonPropertyName("expiresAt")]
+        [JsonPropertyName("expiresat")]
         public DateTime ExpiresAt { get; set; }
 
-        [JsonPropertyName("createdAt")]
+        [JsonPropertyName("createdat")]
         public DateTime CreatedAt { get; set; }
 
-        [JsonPropertyName("revokedAt")]
+        [JsonPropertyName("revokedat")]
         public DateTime? RevokedAt { get; set; }
     }
 
