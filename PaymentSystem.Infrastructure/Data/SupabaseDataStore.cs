@@ -129,44 +129,32 @@ public class SupabaseDataStore : IAppDataStore
         }
     }
 
-    public async Task<IReadOnlyCollection<Subscription>> GetSubscriptionsToExpireAsync(DateTime now, CancellationToken ct)
+    public async Task<int> ExpireAllPassedSubscriptionsAsync(DateTime now, CancellationToken ct)
     {
-        var rows = await GetAsync<List<SupabaseSubscriptionRow>>(
-            $"subscriptions?status=not.in.(Expired,Canceled)&ends_at=lt.{Escape(now.ToString("O"))}&select=*",
-            ct);
+        var result = await SendAsync<List<object>>(
+            HttpMethod.Patch,
+            $"subscriptions?status=not.in.(Expired,Canceled)&ends_at=lt.{Escape(now.ToString("O"))}",
+            new { status = "Expired" },
+            ct,
+            preferRepresentation: true);
 
-        return rows.Select(MapSubscription).ToList();
+        return result.Count;
     }
 
-    public async Task<IReadOnlyCollection<Subscription>> GetSubscriptionsForExpirationNoticeAsync(
-        DateTime now,
-        DateTime notificationWindow,
-        CancellationToken ct)
+    public async Task<int> SendBulkExpirationNotificationsAsync(DateTime now, DateTime window, CancellationToken ct)
     {
-        // Filter for Active subs ending in the window AND (notification never sent OR sent more than 24h ago)
         var dateThreshold = Escape(now.AddDays(-1).ToString("O"));
-        var rows = await GetAsync<List<SupabaseSubscriptionRow>>(
-            $"subscriptions?status=eq.Active&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(notificationWindow.ToString("O"))}" +
-            $"&or=(last_expiration_notification_at.is.null,last_expiration_notification_at.lt.{dateThreshold})&select=*",
-            ct);
+        var query = $"subscriptions?status=eq.Active&ends_at=gte.{Escape(now.ToString("O"))}&ends_at=lte.{Escape(window.ToString("O"))}" +
+                    $"&or=(last_expiration_notification_at.is.null,last_expiration_notification_at.lt.{dateThreshold})";
 
-        return rows.Select(MapSubscription).ToList();
-    }
+        var result = await SendAsync<List<object>>(
+            HttpMethod.Patch,
+            query,
+            new { last_expiration_notification_at = now },
+            ct,
+            preferRepresentation: true);
 
-    public Task MarkSubscriptionsExpiredAsync(IEnumerable<Guid> subscriptionIds, CancellationToken ct)
-    {
-        return PatchSubscriptionsByIdsAsync(subscriptionIds, new { status = "Expired" }, ct);
-    }
-
-    public Task MarkExpirationNotificationsSentAsync(
-        IEnumerable<Guid> subscriptionIds,
-        DateTime sentAt,
-        CancellationToken ct)
-    {
-        return PatchSubscriptionsByIdsAsync(
-            subscriptionIds,
-            new { last_expiration_notification_at = sentAt },
-            ct);
+        return result.Count;
     }
 
     public async Task ActivateLatestPendingCheckoutAsync(
@@ -254,10 +242,11 @@ public class SupabaseDataStore : IAppDataStore
         {
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                throw new InvalidOperationException($"Supabase Table Missing: Ensure you have run the supabase-setup.sql script. Error: {content}");
+                // Log details internally, throw generic error to prevent reconnaissance
+                throw new InvalidOperationException("Data storage service is currently unavailable.");
             }
             throw new InvalidOperationException(
-                $"Supabase request failed with {(int)response.StatusCode}: {content}");
+                "An error occurred while communicating with the data store.");
         }
 
         if (string.IsNullOrWhiteSpace(content))

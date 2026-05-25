@@ -11,12 +11,7 @@ public interface IAppDataStore
     Task UpdateUserAsync(User user, CancellationToken ct);
     Task MarkActiveSubscriptionsReplacedAsync(Guid userId, CancellationToken ct);
     Task AddSubscriptionAsync(Subscription subscription, CancellationToken ct);
-    Task<IReadOnlyCollection<Subscription>> GetSubscriptionsToExpireAsync(DateTime now, CancellationToken ct);
-    Task<IReadOnlyCollection<Subscription>> GetSubscriptionsForExpirationNoticeAsync(
-        DateTime now,
-        DateTime notificationWindow,
-        CancellationToken ct);
-    Task MarkSubscriptionsExpiredAsync(IEnumerable<Guid> subscriptionIds, CancellationToken ct);
-    Task MarkExpirationNotificationsSentAsync(IEnumerable<Guid> subscriptionIds, DateTime sentAt, CancellationToken ct);
+    Task<int> ExpireAllPassedSubscriptionsAsync(DateTime now, CancellationToken ct);
+    Task<int> SendBulkExpirationNotificationsAsync(DateTime now, DateTime window, CancellationToken ct);
     Task ActivateLatestPendingCheckoutAsync(Guid userId, string? stripeSubscriptionId, CancellationToken ct);
 }

@@ -42,19 +42,9 @@ public class EfAppDataStore : IAppDataStore
 
     public async Task MarkActiveSubscriptionsReplacedAsync(Guid userId, CancellationToken ct)
     {
-        var subscriptions = await _db.Subscriptions
+        await _db.Subscriptions
             .Where(subscription => subscription.UserId == userId && subscription.Status == "Active")
-            .ToListAsync(ct);
-
-        foreach (var subscription in subscriptions)
-        {
-            subscription.Status = "Replaced";
-        }
-
-        if (subscriptions.Count > 0)
-        {
-            await _db.SaveChangesAsync(ct);
-        }
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, "Replaced"), ct);
     }
 
     public async Task AddSubscriptionAsync(Subscription subscription, CancellationToken ct)
@@ -63,70 +53,21 @@ public class EfAppDataStore : IAppDataStore
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyCollection<Subscription>> GetSubscriptionsToExpireAsync(DateTime now, CancellationToken ct)
+    public async Task<int> ExpireAllPassedSubscriptionsAsync(DateTime now, CancellationToken ct)
     {
         return await _db.Subscriptions
-            .Where(subscription => subscription.Status != "Expired"
-                && subscription.Status != "Canceled"
-                && subscription.EndsAt < now)
-            .ToListAsync(ct);
+            .Where(s => s.Status != "Expired" && s.Status != "Canceled" && s.EndsAt < now)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, "Expired"), ct);
     }
 
-    public async Task<IReadOnlyCollection<Subscription>> GetSubscriptionsForExpirationNoticeAsync(
-        DateTime now,
-        DateTime notificationWindow,
-        CancellationToken ct)
+    public async Task<int> SendBulkExpirationNotificationsAsync(DateTime now, DateTime window, CancellationToken ct)
     {
         return await _db.Subscriptions
-            .Where(subscription => subscription.Status == "Active"
-                && subscription.EndsAt >= now
-                && subscription.EndsAt <= notificationWindow
-                && (subscription.LastExpirationNotificationAt == null
-                    || subscription.LastExpirationNotificationAt < now.AddDays(-1)))
-            .ToListAsync(ct);
-    }
-
-    public async Task MarkSubscriptionsExpiredAsync(IEnumerable<Guid> subscriptionIds, CancellationToken ct)
-    {
-        var ids = subscriptionIds.ToArray();
-        if (ids.Length == 0)
-        {
-            return;
-        }
-
-        var subscriptions = await _db.Subscriptions
-            .Where(subscription => ids.Contains(subscription.Id))
-            .ToListAsync(ct);
-
-        foreach (var subscription in subscriptions)
-        {
-            subscription.Status = "Expired";
-        }
-
-        await _db.SaveChangesAsync(ct);
-    }
-
-    public async Task MarkExpirationNotificationsSentAsync(
-        IEnumerable<Guid> subscriptionIds,
-        DateTime sentAt,
-        CancellationToken ct)
-    {
-        var ids = subscriptionIds.ToArray();
-        if (ids.Length == 0)
-        {
-            return;
-        }
-
-        var subscriptions = await _db.Subscriptions
-            .Where(subscription => ids.Contains(subscription.Id))
-            .ToListAsync(ct);
-
-        foreach (var subscription in subscriptions)
-        {
-            subscription.LastExpirationNotificationAt = sentAt;
-        }
-
-        await _db.SaveChangesAsync(ct);
+            .Where(s => s.Status == "Active" 
+                && s.EndsAt >= now 
+                && s.EndsAt <= window 
+                && (s.LastExpirationNotificationAt == null || s.LastExpirationNotificationAt < now.AddDays(-1)))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastExpirationNotificationAt, now), ct);
     }
 
     public async Task ActivateLatestPendingCheckoutAsync(
@@ -134,21 +75,33 @@ public class EfAppDataStore : IAppDataStore
         string? stripeSubscriptionId,
         CancellationToken ct)
     {
-        var subscription = await _db.Subscriptions
-            .Where(item => item.UserId == userId && item.Status == "PendingCheckout")
-            .OrderByDescending(item => item.StartsAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (subscription is null)
+        // Use a transaction to ensure atomicity during high-concurrency activations
+        using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        try
         {
-            return;
+            var subscription = await _db.Subscriptions
+                .Where(item => item.UserId == userId && item.Status == "PendingCheckout")
+                .OrderByDescending(item => item.StartsAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (subscription is null)
+            {
+                return;
+            }
+
+            // Ensure old subscriptions are marked as replaced
+            await MarkActiveSubscriptionsReplacedAsync(userId, ct);
+
+            subscription.Status = "Active";
+            subscription.StripeSubscriptionId = stripeSubscriptionId ?? subscription.StripeSubscriptionId;
+            
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
         }
-
-        // Ensure old subscriptions are marked as replaced now that the new one is confirmed
-        await MarkActiveSubscriptionsReplacedAsync(userId, ct);
-
-        subscription.Status = "Active";
-        subscription.StripeSubscriptionId = stripeSubscriptionId ?? subscription.StripeSubscriptionId;
-        await _db.SaveChangesAsync(ct);
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
     }
 }

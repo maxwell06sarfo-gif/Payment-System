@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -76,9 +76,10 @@ public class AuthService
 
     public string GenerateJwtToken(User user)
     {
-        var secretKey = _configuration["Jwt:Key"] ?? "SUPER_SECRET_RELIABLE_PAYMENT_SYSTEM_KEY_12345!";
-        var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem";
-        var audience = _configuration["Jwt:Audience"] ?? "PaymentSystemUsers";
+        var secretKey = _configuration["Jwt:Key"] 
+            ?? throw new InvalidOperationException("Security Critical: JWT Key is not configured in environment variables.");
+        var issuer = _configuration["Jwt:Issuer"] ?? "PaymentSystem-Prod";
+        var audience = _configuration["Jwt:Audience"] ?? "PaymentSystem-App";
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);

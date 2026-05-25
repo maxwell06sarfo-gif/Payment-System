@@ -1,28 +1,32 @@
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.env
-dist/
-build/
-
-# .NET / Visual Studio
+## Ignore Visual Studio / .NET artifacts
 bin/
 obj/
-out/
 .vs/
-.vscode/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 
-# OS generated files
+## Ignore Node/Next.js artifacts
+node_modules/
+.next/
+out/
+build/
+
+## Ignore environment secrets (CRITICAL)
+appsettings.Development.json
+appsettings.Local.json
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+## Ignore OS files
 .DS_Store
 Thumbs.db
 
-# User-specific files
+## User-specific files
 *.pfx
 *.publishsettings
-appsettings.Development.json
+secrets.json

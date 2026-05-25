@@ -186,9 +186,13 @@ public class SubscriptionHandler :
 
     private static Subscription? GetCurrentSubscription(IEnumerable<Subscription> subscriptions)
     {
+        // Only surfaces genuinely Active subscriptions.
+        // Expired, Replaced, and PendingCheckout entries must NOT be shown as the user's
+        // current plan — doing so caused stale data to appear after cancellations or
+        // failed checkouts (Bug fix: filter strictly by "Active" status).
         return subscriptions
-            .OrderByDescending(s => s.Status == "Active")
-            .ThenByDescending(s => s.StartsAt)
+            .Where(s => s.Status == "Active")
+            .OrderByDescending(s => s.StartsAt)
             .FirstOrDefault();
     }
 

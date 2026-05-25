@@ -196,6 +196,7 @@ export function AuthPanel() {
 
             <div>
               <Field
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
                 error={getFieldError(fieldErrors, "Password")}
                 label="Password"
                 name="password"
@@ -225,6 +226,7 @@ export function AuthPanel() {
 }
 
 function Field({
+  autoComplete,
   error,
   label,
   name,
@@ -232,6 +234,7 @@ function Field({
   type,
   value,
 }: {
+  autoComplete?: string;
   error?: string;
   label: string;
   name: string;
@@ -239,11 +242,16 @@ function Field({
   type: string;
   value: string;
 }) {
+  // Derive a sensible default when the caller does not specify autoComplete.
+  // Password fields default to "current-password"; everything else falls back
+  // to the field name so the browser can match saved form data.
+  const resolvedAutoComplete = autoComplete ?? (type === "password" ? "current-password" : name);
+
   return (
     <label className="block" htmlFor={name}>
       <span className="mb-2 block text-sm font-semibold text-[#2a352d]">{label}</span>
       <input
-        autoComplete={type === "password" ? "current-password" : name}
+        autoComplete={resolvedAutoComplete}
         className={`h-12 w-full rounded-lg border bg-white px-3 text-sm outline-none transition ${
           error ? "border-[#d4513f]" : "border-[#ccd6cb] focus:border-[#16745a]"
         }`}
