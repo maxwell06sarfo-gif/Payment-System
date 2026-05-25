@@ -230,7 +230,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 // Simple health + version probe — lets us confirm which build Render is actually serving.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v4-di-resolution-fix" }))
+app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v6-build-failure-fixed" }))
    .WithTags("Health")
    .ExcludeFromDescription();
 
