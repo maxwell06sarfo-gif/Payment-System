@@ -36,6 +36,7 @@ export function AuthPanel() {
   const [form, setForm] = useState<AuthForm>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | undefined>();
 
   const title = mode === "login" ? "Welcome back" : "Create account";
@@ -65,6 +66,7 @@ export function AuthPanel() {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage(null);
+    setIsSuccess(false);
     setFieldErrors(undefined);
 
     try {
@@ -76,7 +78,8 @@ export function AuthPanel() {
         }
 
         // Show success message and switch to login mode
-        setMessage("Account created successfully! Please sign in.");
+        setMessage("Account created successfully");
+        setIsSuccess(true);
         setMode("login");
         return;
       }
@@ -95,6 +98,7 @@ export function AuthPanel() {
     } catch (error) {
       const apiError = error as ApiFailure;
       setMessage(getApiErrorMessage(error));
+      setIsSuccess(false);
       setFieldErrors(apiError.fieldErrors);
     } finally {
       setIsSubmitting(false);
@@ -104,6 +108,7 @@ export function AuthPanel() {
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
     setMessage(null);
+    setIsSuccess(false);
     setFieldErrors(undefined);
   }
 
@@ -178,8 +183,16 @@ export function AuthPanel() {
           </div>
 
           {message ? (
-            <div className="mb-5 flex gap-3 rounded-lg border border-[#efc6bf] bg-[#fff1ee] p-3 text-sm text-[#9b2c1f]">
-              <AlertCircle aria-hidden className="mt-0.5 shrink-0" size={18} />
+            <div className={`mb-5 flex gap-3 rounded-lg border p-3 text-sm ${
+              isSuccess
+                ? "border-[#b7e4c7] bg-[#f0fdf4] text-[#166534]"
+                : "border-[#efc6bf] bg-[#fff1ee] text-[#9b2c1f]"
+            }`}>
+              {isSuccess ? (
+                <BadgeCheck aria-hidden className="mt-0.5 shrink-0" size={18} />
+              ) : (
+                <AlertCircle aria-hidden className="mt-0.5 shrink-0" size={18} />
+              )}
               <span>{message}</span>
             </div>
           ) : null}
