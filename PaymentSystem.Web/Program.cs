@@ -101,10 +101,16 @@ builder.Services.AddRateLimiter(options =>
 
 // ---------------------------------------------------------------------------
 // CORS
-// Localhost and any Vercel preview deployment are permitted. All other origins
-// are blocked. This list should be tightened to an explicit allow-list once
-// the production domain is finalised.
+// Origins are resolved in three layers, checked in order:
+//   1. App:AllowedOrigins — explicit comma-separated list from environment/config
+//      (set this on Render to lock down the exact production/preview URLs)
+//   2. Localhost — always allowed for local development
+//   3. *.vercel.app — wildcard for Vercel preview deployments
 // ---------------------------------------------------------------------------
+var explicitOrigins = (builder.Configuration["App:AllowedOrigins"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -115,8 +121,16 @@ builder.Services.AddCors(options =>
                 if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
                     return false;
 
-                return uri.Host is "localhost" or "127.0.0.1"
-                    || origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
+                // Explicit allow-list takes priority — use this for production URLs.
+                if (explicitOrigins.Count > 0 && explicitOrigins.Contains(origin.TrimEnd('/')))
+                    return true;
+
+                // Always permit localhost for dev.
+                if (uri.Host is "localhost" or "127.0.0.1")
+                    return true;
+
+                // Permit all Vercel preview deployments.
+                return origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
             })
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -168,11 +182,13 @@ var app = builder.Build();
 
 // ---------------------------------------------------------------------------
 // MIDDLEWARE PIPELINE
-// Order matters here. Exception handling must be outermost so it catches errors
-// from every subsequent middleware. Security headers go on before CORS so they
-// are present on preflight responses as well as real requests.
+// CORS must run immediately after the exception handler so that preflight
+// responses and error responses both carry Access-Control-Allow-Origin.
+// Placing it any later means the browser rejects the response before it
+// even inspects the status code.
 // ---------------------------------------------------------------------------
 app.UseExceptionHandler();
+app.UseCors("Frontend");
 
 if (!app.Environment.IsDevelopment())
 {
@@ -191,7 +207,6 @@ if (app.Environment.IsDevelopment())
         options.RoutePrefix = "swagger";
     });
 }
-app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
