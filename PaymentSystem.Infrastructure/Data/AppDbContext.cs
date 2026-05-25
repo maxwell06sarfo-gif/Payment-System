@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PaymentSystem.Core.Entities;
 
@@ -12,14 +12,14 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // --- User ------------------------------------------------------------
-        // Email is the natural unique key for lookups; index it to keep login fast
-        // at scale. StripeCustomerId is nullable — populated only after first checkout.
+        // Configure User Entity
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(u => u.Id);
@@ -30,10 +30,7 @@ public class AppDbContext : DbContext
             entity.Property(u => u.StripeCustomerId).HasMaxLength(100);
         });
 
-        // --- Subscription ----------------------------------------------------
-        // decimal(18,2) matches Stripe's smallest-unit model when converted back
-        // to display currency. Cascade delete keeps orphaned subscription rows from
-        // accumulating if a user account is ever hard-deleted.
+        // Configure Subscription Entity
         modelBuilder.Entity<Subscription>(entity =>
         {
             entity.HasKey(s => s.Id);
@@ -42,10 +39,24 @@ public class AppDbContext : DbContext
             entity.Property(s => s.Price).HasColumnType("decimal(18,2)");
             entity.Property(s => s.StripeSubscriptionId).HasMaxLength(100);
 
+            // Setup 1-to-Many Relationship
             entity.HasOne(s => s.User)
                   .WithMany(u => u.Subscriptions)
                   .HasForeignKey(s => s.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure Webhook Idempotency
+        modelBuilder.Entity<ProcessedWebhookEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+        });
+
+        // Configure Refresh Tokens
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.HasIndex(t => t.Token).IsUnique();
         });
     }
 }

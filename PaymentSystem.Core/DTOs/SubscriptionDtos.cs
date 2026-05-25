@@ -1,22 +1,24 @@
-﻿using System;
+using System;
 using PaymentSystem.Core.Enums;
 
 namespace PaymentSystem.Core.DTOs;
 
-// Request Records
+// ── Request Records ──────────────────────────────────────────────────────────
 public record UserRegisterRequest(string Email, string Password, string FullName);
 public record UserLoginRequest(string Email, string Password);
 public record CreateSubscriptionRequest(SubscriptionTier Tier, SubscriptionDuration Duration);
+public record RefreshTokenRequest(string Token);
 
-// Response Records
+// ── Response Records ─────────────────────────────────────────────────────────
 public record UserResponse(Guid Id, string Email, string FullName, string? StripeCustomerId);
+
 public record SubscriptionResponse(
-    Guid Id, 
-    SubscriptionTier Tier, 
-    SubscriptionDuration Duration, 
-    string Status, 
-    decimal Price, 
-    string Currency, 
+    Guid Id,
+    SubscriptionTier Tier,
+    SubscriptionDuration Duration,
+    SubscriptionStatus Status,
+    decimal Price,
+    string Currency,
     DateTime EndsAt,
     bool IsExpiringSoon,
     int DaysUntilExpiration,
@@ -44,3 +46,5 @@ public record CreateSubscriptionResponse(
     string? CheckoutUrl,
     SubscriptionResponse? Subscription
 );
+
+public record BillingPortalResponse(string Url);

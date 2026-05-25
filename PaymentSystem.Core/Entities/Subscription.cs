@@ -1,5 +1,4 @@
-﻿using System;
-using PaymentSystem.Core.Constants;
+using System;
 using PaymentSystem.Core.Enums;
 
 namespace PaymentSystem.Core.Entities;
@@ -11,7 +10,7 @@ public class Subscription
     public SubscriptionTier Tier { get; set; }
     public SubscriptionDuration Duration { get; set; }
     public string? StripeSubscriptionId { get; set; }
-    public string Status { get; set; } = SubscriptionStatus.Inactive;
+    public SubscriptionStatus Status { get; set; } = SubscriptionStatus.Inactive;
     public decimal Price { get; set; }
     public string Currency { get; set; } = "USD";
     public DateTime StartsAt { get; set; } = DateTime.UtcNow;

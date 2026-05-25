@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using MediatR;
 using PaymentSystem.Core.CQRS.Authentication;
 using PaymentSystem.Core.Entities;
@@ -8,7 +9,8 @@ namespace PaymentSystem.Infrastructure.CQRS.Handlers;
 
 public class AuthHandler :
     IRequestHandler<RegisterUserCommand, RegistrationResult>,
-    IRequestHandler<LoginUserQuery, AuthTokenResult>
+    IRequestHandler<LoginUserQuery, AuthTokenResult>,
+    IRequestHandler<RefreshTokenCommand, AuthTokenResult>
 {
     private readonly IAppDataStore _dataStore;
     private readonly AuthService _authService;
@@ -45,6 +47,41 @@ public class AuthHandler :
         if (user == null || !_authService.VerifyPassword(request.Password, user.PasswordHash))
             return new AuthTokenResult(false, null);
 
-        return new AuthTokenResult(true, _authService.GenerateJwtToken(user));
+        var jwt = _authService.GenerateJwtToken(user);
+        var refreshToken = GenerateRefreshToken(user.Id);
+
+        await _dataStore.SaveRefreshTokenAsync(refreshToken, ct);
+
+        return new AuthTokenResult(true, jwt, refreshToken.Token);
     }
+
+    public async Task<AuthTokenResult> Handle(RefreshTokenCommand request, CancellationToken ct)
+    {
+        var storedToken = await _dataStore.GetRefreshTokenAsync(request.RefreshToken, ct);
+
+        if (storedToken == null || !storedToken.IsActive)
+            return new AuthTokenResult(false, null);
+
+        var user = await _dataStore.GetUserWithSubscriptionsAsync(storedToken.UserId, ct);
+        if (user == null) return new AuthTokenResult(false, null);
+
+        // Revoke old token
+        storedToken.RevokedAt = DateTime.UtcNow;
+        await _dataStore.SaveRefreshTokenAsync(storedToken, ct); // Assuming Save updates if exists
+
+        // Generate new pair
+        var jwt = _authService.GenerateJwtToken(user);
+        var newRefreshToken = GenerateRefreshToken(user.Id);
+        await _dataStore.SaveRefreshTokenAsync(newRefreshToken, ct);
+
+        return new AuthTokenResult(true, jwt, newRefreshToken.Token);
+    }
+
+    private static RefreshToken GenerateRefreshToken(Guid userId) => new()
+    {
+        Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(64)),
+        UserId = userId,
+        ExpiresAt = DateTime.UtcNow.AddDays(7),
+        CreatedAt = DateTime.UtcNow
+    };
 }

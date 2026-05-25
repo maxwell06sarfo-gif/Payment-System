@@ -190,6 +190,34 @@ public class SupabaseDataStore : IAppDataStore
             ct);
     }
 
+    public async Task<bool> HasWebhookBeenProcessedAsync(string eventId, CancellationToken ct)
+    {
+        var events = await GetAsync<List<object>>(
+            $"processed_webhook_events?id=eq.{Escape(eventId)}&select=id&limit=1",
+            ct);
+        return events.Count > 0;
+    }
+
+    public Task MarkWebhookAsProcessedAsync(string eventId, CancellationToken ct)
+    {
+        return SendAsync<object>(
+            HttpMethod.Post,
+            "processed_webhook_events",
+            new { id = eventId, processed_at = DateTime.UtcNow },
+            ct);
+    }
+
+    public Task SaveRefreshTokenAsync(RefreshToken token, CancellationToken ct)
+    {
+        return SendAsync<object>(HttpMethod.Post, "refresh_tokens", token, ct);
+    }
+
+    public async Task<RefreshToken?> GetRefreshTokenAsync(string token, CancellationToken ct)
+    {
+        var tokens = await GetAsync<List<RefreshToken>>($"refresh_tokens?token=eq.{Escape(token)}&select=*&limit=1", ct);
+        return tokens.FirstOrDefault();
+    }
+
     private async Task PatchSubscriptionsByIdsAsync(
         IEnumerable<Guid> subscriptionIds,
         object payload,
@@ -277,7 +305,7 @@ public class SupabaseDataStore : IAppDataStore
             tier = subscription.Tier.ToString(),
             duration = subscription.Duration.ToString(),
             stripe_subscription_id = subscription.StripeSubscriptionId,
-            status = subscription.Status,
+            status = subscription.Status.ToString(),
             price = subscription.Price,
             currency = subscription.Currency,
             starts_at = subscription.StartsAt,
@@ -318,7 +346,7 @@ public class SupabaseDataStore : IAppDataStore
         subscription.Tier = Enum.Parse<SubscriptionTier>(row.Tier);
         subscription.Duration = Enum.Parse<SubscriptionDuration>(row.Duration);
         subscription.StripeSubscriptionId = row.StripeSubscriptionId;
-        subscription.Status = row.Status;
+        subscription.Status = Enum.Parse<SubscriptionStatus>(row.Status);
         subscription.Price = row.Price;
         subscription.Currency = row.Currency;
         subscription.StartsAt = row.StartsAt;

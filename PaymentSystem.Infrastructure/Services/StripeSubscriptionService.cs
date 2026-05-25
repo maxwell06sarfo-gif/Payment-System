@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using PaymentSystem.Core.Enums;
 using Stripe;
 using Stripe.Checkout;
+using Stripe.BillingPortal;
 
 namespace PaymentSystem.Infrastructure.Services;
 
@@ -92,6 +93,21 @@ public class StripeSubscriptionService
 
         var service = new SessionService();
         Session session = await service.CreateAsync(options);
+        return session.Url;
+    }
+
+    public async Task<string> CreateCustomerPortalSessionAsync(string stripeCustomerId, string returnUrl)
+    {
+        EnsureStripeConfigured();
+
+        var options = new SessionCreateOptions
+        {
+            Customer = stripeCustomerId,
+            ReturnUrl = returnUrl,
+        };
+
+        var service = new SessionService();
+        var session = await service.CreateAsync(options);
         return session.Url;
     }
 

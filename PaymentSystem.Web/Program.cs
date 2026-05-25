@@ -7,6 +7,7 @@ using PaymentSystem.Core.CQRS.Subscriptions;
 using PaymentSystem.Core.DTOs;
 using PaymentSystem.Infrastructure;
 using PaymentSystem.Infrastructure.Data;
+using PaymentSystem.Infrastructure.Services;
 using PaymentSystem.Web.Middleware;
 using Stripe;
 using Stripe.Checkout;
@@ -64,29 +65,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 // ---------------------------------------------------------------------------
 // FAIL-FAST VALIDATION
-// Jwt:Key is always required — without it the app cannot issue or verify tokens.
-// Stripe keys are only required when a real Stripe secret key is provided;
-// when Stripe is absent the app runs in demo mode (local billing engine only).
 // ---------------------------------------------------------------------------
-var jwtKeyVal = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKeyVal) || jwtKeyVal.Length < 32)
-    throw new InvalidOperationException(
-        "CRITICAL CONFIG MISSING: Jwt:Key. Provide at least 32 characters via Jwt__Key.");
-
-var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? string.Empty;
-var stripeEnabled = stripeSecretKey.StartsWith("sk_", StringComparison.OrdinalIgnoreCase);
-
-if (stripeEnabled)
+var criticalConfigs = new Dictionary<string, string>
 {
-    // When Stripe is active, the webhook secret is also required so that
-    // incoming webhook deliveries can be signature-verified.
-    var webhookSecret = builder.Configuration["Stripe:WebhookSecret"];
-    if (string.IsNullOrWhiteSpace(webhookSecret))
-        throw new InvalidOperationException(
-            "CRITICAL CONFIG MISSING: Stripe:WebhookSecret. Required via Stripe__WebhookSecret when Stripe is enabled.");
+    { "Jwt:Key", "Provide at least 32 characters via Jwt__Key." },
+    { "Stripe:SecretKey", "Required via Stripe__SecretKey." },
+    { "Stripe:WebhookSecret", "Required via Stripe__WebhookSecret." }
+};
+
+foreach (var config in criticalConfigs)
+{
+    var val = builder.Configuration[config.Key];
+    if (string.IsNullOrWhiteSpace(val) || (config.Key == "Jwt:Key" && val.Length < 32))
+        throw new InvalidOperationException($"CRITICAL CONFIG MISSING: {config.Key}. {config.Value}");
 }
 
-var jwtKey = jwtKeyVal!;
+var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -236,7 +230,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 // Simple health + version probe — lets us confirm which build Render is actually serving.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v5-startup-fix" }))
+app.MapGet("/health", () => Results.Ok(new { status = "ok", build = "v4-di-resolution-fix" }))
    .WithTags("Health")
    .ExcludeFromDescription();
 
@@ -268,6 +262,18 @@ app.MapPost("/api/auth/login", async (
 .RequireRateLimiting("Strict")
 .WithTags("Authentication")
 .WithSummary("Log in and receive a JWT token");
+
+app.MapPost("/api/auth/refresh", async (
+    RefreshTokenRequest request,
+    IMediator mediator) =>
+{
+    var result = await mediator.Send(new RefreshTokenCommand(request.RefreshToken));
+    return result.IsAuthenticated
+        ? Results.Ok(result)
+        : Results.Unauthorized();
+})
+.WithTags("Authentication")
+.WithSummary("Exchange a refresh token for a new JWT and Refresh Token");
 
 // ---------------------------------------------------------------------------
 // SUBSCRIPTION PLAN ENDPOINTS
@@ -337,6 +343,25 @@ app.MapPost("/api/subscriptions", async (
 .WithTags("Subscriptions")
 .WithSummary("Subscribe to Promotion, Gold, or Diamond plan");
 
+app.MapPost("/api/subscriptions/portal", async (
+    ClaimsPrincipal principal,
+    HttpRequest httpRequest,
+    IAppDataStore dataStore,
+    StripeSubscriptionService stripeService) =>
+{
+    if (!TryGetUserId(principal, out var userId)) return Results.Unauthorized();
+    var user = await dataStore.GetUserByEmailAsync(principal.FindFirstValue(ClaimTypes.Email)!, CancellationToken.None);
+    
+    if (user == null || string.IsNullOrEmpty(user.StripeCustomerId)) return Results.BadRequest("No billing history found.");
+
+    var returnUrl = ResolveRedirectBase(httpRequest, app.Configuration) + "/dashboard";
+    var url = await stripeService.CreateCustomerPortalSessionAsync(user.StripeCustomerId, returnUrl);
+    return Results.Ok(new { url });
+})
+.RequireAuthorization()
+.WithTags("Subscriptions")
+.WithSummary("Generate a Stripe Billing Portal link for self-service management");
+
 // ---------------------------------------------------------------------------
 // STRIPE WEBHOOK
 // Stripe signs every webhook delivery with a HMAC signature. We verify it
@@ -346,6 +371,7 @@ app.MapPost("/api/subscriptions", async (
 app.MapPost("/api/stripe/webhook", async (
     HttpRequest request,
     IConfiguration configuration,
+    IAppDataStore dataStore,
     IMediator mediator) =>
 {
     var webhookSecret = configuration["Stripe:WebhookSecret"];
@@ -372,6 +398,12 @@ app.MapPost("/api/stripe/webhook", async (
         return Results.BadRequest(new { message = "Invalid Stripe webhook signature." });
     }
 
+    // Check for idempotency — avoid processing the same event twice
+    if (await dataStore.HasWebhookBeenProcessedAsync(stripeEvent.Id, CancellationToken.None))
+    {
+        return Results.Ok(new { received = true, duplicated = true });
+    }
+
     if (stripeEvent.Type == "checkout.session.completed"
         && stripeEvent.Data.Object is Session session
         && session.Metadata.TryGetValue("user_id", out var rawUserId)
@@ -379,6 +411,9 @@ app.MapPost("/api/stripe/webhook", async (
     {
         await mediator.Send(new ActivateSubscriptionFromStripeCommand(userId, session.SubscriptionId));
     }
+
+    // Mark event as processed
+    await dataStore.MarkWebhookAsProcessedAsync(stripeEvent.Id, CancellationToken.None);
 
     return Results.Ok(new { received = true });
 })

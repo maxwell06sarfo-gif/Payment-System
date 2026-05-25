@@ -13,21 +13,22 @@ public static class InfrastructureConfiguration
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
     {
-        // MediatR scans this assembly for all IRequestHandler implementations at startup.
+        // Register MediatR handlers from Infrastructure layer
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
-        // Validators live in the Core assembly — reference by type to avoid a magic string assembly name.
+        // Register FluentValidation validators from Core layer (proper type-safe reference)
         services.AddValidatorsFromAssembly(typeof(RegisterUserCommand).Assembly);
 
-        // Runs every request through FluentValidation before it reaches its handler.
+        // Register the MediatR validation pipeline behavior
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
+        // Register application services
         services.AddScoped<AuthService>();
         services.AddScoped<SubscriptionPlanService>();
         services.AddScoped<StripeSubscriptionService>();
+        services.AddHttpClient<IEmailService, ResendEmailService>();
 
-        // Runs on a configurable interval (default 24 h) to expire stale subscriptions
-        // and stamp expiration notification timestamps on records approaching end date.
+        // Register the background subscription expiry monitor
         services.AddHostedService<SubscriptionExpiryMonitor>();
 
         return services;

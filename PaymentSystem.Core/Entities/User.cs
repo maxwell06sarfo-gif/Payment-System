@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PaymentSystem.Core.Entities;
@@ -12,6 +12,6 @@ public class User
     public string? StripeCustomerId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Relational Navigation properties
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

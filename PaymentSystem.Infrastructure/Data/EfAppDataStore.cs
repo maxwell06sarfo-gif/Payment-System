@@ -103,4 +103,26 @@ public class EfAppDataStore : IAppDataStore
             throw;
         }
     }
+
+    public Task<bool> HasWebhookBeenProcessedAsync(string eventId, CancellationToken ct)
+    {
+        return _db.ProcessedWebhookEvents.AnyAsync(e => e.Id == eventId, ct);
+    }
+
+    public async Task MarkWebhookAsProcessedAsync(string eventId, CancellationToken ct)
+    {
+        _db.ProcessedWebhookEvents.Add(new ProcessedWebhookEvent { Id = eventId });
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task SaveRefreshTokenAsync(RefreshToken token, CancellationToken ct)
+    {
+        _db.RefreshTokens.Add(token);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public Task<RefreshToken?> GetRefreshTokenAsync(string token, CancellationToken ct)
+    {
+        return _db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == token, ct);
+    }
 }
